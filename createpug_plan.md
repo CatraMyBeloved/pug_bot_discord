@@ -3,8 +3,26 @@
 ## Overview
 
 A Discord bot for managing Pick-Up Games (PUGs) with automatic matchmaking, team balancing, and voice channel
-management. The bot selects players from a voice channel based on priority (time since last match and rank), creates
+management. The bot selects players from a voice channel based on priority (time since last match), creates
 balanced teams, and manages match flow.
+
+## Design Decisions
+
+**Matchmaking:**
+- Player selection based on time since last match (fairest for community play)
+- Tie-breaking uses random selection when priority scores are equal
+- Global team balancing algorithm for better rank distribution across teams
+- No include/exclude parameters initially (deferred to Phase 2 for cleaner UX)
+
+**Permissions:**
+- Configurable PUG Leader role for match management
+- Admins always have full permissions
+- If no PUG Leader role set, only admins can manage matches
+
+**Match Flow:**
+- Voice channel validation before start (warn if players missing, but continue)
+- Basic match completion command included in Phase 1
+- Win/loss tracking deferred to Phase 2
 
 ## Match Configuration
 
@@ -17,57 +35,63 @@ balanced teams, and manages match flow.
 ### players
 
 ```sql
-CREATE TABLE players (
-  discord_user_id TEXT PRIMARY KEY,
-  battlenet_id TEXT NOT NULL,
-  role TEXT NOT NULL,                   -- 'tank', 'dps', 'support'
-  rank TEXT NOT NULL,                   -- 'bronze', 'silver', 'gold', 'platin', 'diamond', 'master', 'grandmaster'
-  wins INTEGER NOT NULL DEFAULT 0,
-  losses INTEGER NOT NULL DEFAULT 0,
-  registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE players
+(
+    discord_user_id TEXT PRIMARY KEY,
+    battlenet_id    TEXT    NOT NULL,
+    role            TEXT    NOT NULL, -- 'tank', 'dps', 'support'
+    rank            TEXT    NOT NULL, -- 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'grandmaster'
+    wins            INTEGER NOT NULL DEFAULT 0,
+    losses          INTEGER NOT NULL DEFAULT 0,
+    registered_at   DATETIME         DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_players_role ON players(role);
+CREATE INDEX idx_players_role ON players (role);
 ```
 
 ### matches
 
 ```sql
-CREATE TABLE matches (
-  match_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  state TEXT NOT NULL DEFAULT 'prepared',  -- 'prepared', 'active', 'complete', 'cancelled'
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  completed_at DATETIME,
-  winning_team INTEGER,                    -- 1 or 2 (NULL until complete)
-  voice_channel_id TEXT
+CREATE TABLE matches
+(
+    match_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    state            TEXT NOT NULL DEFAULT 'prepared', -- 'prepared', 'active', 'complete', 'cancelled'
+    created_at       DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    completed_at     DATETIME,
+    winning_team     INTEGER,                          -- 1 or 2 (NULL until complete)
+    voice_channel_id TEXT
 );
 
-CREATE INDEX idx_matches_state ON matches(state);
+CREATE INDEX idx_matches_state ON matches (state);
 ```
 
 ### match_participants
 
 ```sql
-CREATE TABLE match_participants (
-  match_id INTEGER NOT NULL,
-  discord_user_id TEXT NOT NULL,
-  team INTEGER NOT NULL,                -- 1 or 2
-  PRIMARY KEY (match_id, discord_user_id),
-  FOREIGN KEY (match_id) REFERENCES matches(match_id),
-  FOREIGN KEY (discord_user_id) REFERENCES players(discord_user_id)
+CREATE TABLE match_participants
+(
+    match_id        INTEGER NOT NULL,
+    discord_user_id TEXT    NOT NULL,
+    team            INTEGER NOT NULL, -- 1 or 2
+    PRIMARY KEY (match_id, discord_user_id),
+    FOREIGN KEY (match_id) REFERENCES matches (match_id),
+    FOREIGN KEY (discord_user_id) REFERENCES players (discord_user_id)
 );
 ```
 
 ### guild_config
 
 ```sql
-CREATE TABLE guild_config (
-  guild_id TEXT PRIMARY KEY,
-  main_vc_id TEXT,
-  team1_vc_id TEXT,
-  team2_vc_id TEXT,
-  auto_move INTEGER NOT NULL DEFAULT 1,  -- 1 = enabled, 0 = disabled
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE guild_config
+(
+    guild_id              TEXT PRIMARY KEY,
+    main_vc_id            TEXT,
+    team1_vc_id           TEXT,
+    team2_vc_id           TEXT,
+    auto_move             INTEGER NOT NULL DEFAULT 1, -- 1 = enabled, 0 = disabled
+    pug_leader_role_id    TEXT,                       -- Role allowed to manage matches
+    announcement_channel_id TEXT,
+    updated_at            DATETIME         DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
@@ -81,7 +105,7 @@ Register for PUG matches.
 
 - `battlenet` (string, required): BattleNet ID (e.g., Player#1234)
 - `role` (choice, required): tank | dps | support
-- `rank` (choice, required): bronze | silver | gold | platin | diamond | master | grandmaster
+- `rank` (choice, required): bronze | silver | gold | platinum | diamond | master | grandmaster
 
 **Behavior:**
 
@@ -159,6 +183,20 @@ Toggle automatic player movement to team VCs.
 
 - `enabled` (boolean, required)
 
+#### `/setup pugleader`
+
+Set the role allowed to manage matches (create/start/cancel).
+
+**Parameters:**
+
+- `role` (role, required)
+
+**Behavior:**
+
+- Sets which role can use `/makepug` commands
+- Admin users can always use match commands regardless of role
+- If not set, only admins can manage matches
+
 #### `/setup view`
 
 View current server configuration.
@@ -172,6 +210,8 @@ Main VC: #Lobby
 Team 1 VC: #Team-1
 Team 2 VC: #Team-2
 Auto-move: Enabled
+PUG Leader Role: @PUG Captain
+Announcement Channel: #pug-announcements
 ```
 
 ### `/makepug`
@@ -184,14 +224,13 @@ Create a new match with automatic player selection.
 
 **Parameters:**
 
-- `include` (user, optional): Force-include specific player(s)
-- `exclude` (user, optional): Exclude specific player(s)
+- None
 
 **Behavior:**
 
-1. Check no prepared/active match exists
-2. Get all registered players in main VC
-3. Apply include/exclude filters
+1. Check user has permission (PUG Leader role or Administrator)
+2. Check no prepared/active match exists
+3. Get all registered players in main VC
 4. Run matchmaking algorithm
 5. Create balanced teams
 6. Save match as 'prepared'
@@ -221,10 +260,14 @@ Start the prepared match.
 
 **Behavior:**
 
-1. Check prepared match exists
-2. Move players to team VCs (if auto-move enabled)
-3. Update match state to 'active'
-4. Confirm match started
+1. Check user has permission (PUG Leader role or Administrator)
+2. Check prepared match exists
+3. Validate all players still in voice channel
+   - If players missing: display warning with names but continue
+4. Move players to team VCs (if auto-move enabled)
+   - Skip players not in VC
+5. Update match state to 'active'
+6. Confirm match started
 
 **Output:**
 
@@ -241,15 +284,46 @@ Cancel the current prepared or active match.
 
 **Behavior:**
 
-1. Check match exists
-2. Update match state to 'cancelled'
-3. Set completed_at timestamp
-4. Confirm cancellation
+1. Check user has permission (PUG Leader role or Administrator)
+2. Check match exists
+3. Update match state to 'cancelled'
+4. Set completed_at timestamp
+5. Confirm cancellation
 
 **Output:**
 
 ```
 Match cancelled.
+```
+
+### `/match`
+
+Match management command with subcommands.
+
+#### `/match complete`
+
+Mark the current active match as complete.
+
+**Parameters:**
+
+- `winning_team` (choice, required): 1 | 2 | draw
+
+**Behavior:**
+
+1. Check user has permission (PUG Leader role or Administrator)
+2. Check active match exists
+3. Update match state to 'complete'
+4. Set winning_team (NULL for draw)
+5. Set completed_at timestamp
+6. Confirm completion
+
+**Output:**
+
+```
+Match completed!
+Winning Team: Team 1
+
+Note: Win/loss tracking will be added in Phase 2.
 ```
 
 ## Matchmaking Algorithm
@@ -264,11 +338,7 @@ Match cancelled.
     - Use Discord API to get all members in main voice channel
     - Filter to only registered players (check against players table)
 
-3. **Apply manual filters:**
-    - Add `include` players (if registered and in VC)
-    - Remove `exclude` players
-
-4. **Validate player count:**
+3. **Validate player count:**
     - If < 10 players: fail with error
     - If ≥ 10 players: continue
 
@@ -277,10 +347,12 @@ Match cancelled.
 **Calculate priority score for each eligible player:**
 
 ```javascript
-priority_score = {
-  never_played: Infinity,
-  last_played: days_since_last_match * weight_factor
-}
+// Calculate days since last match
+const lastMatch = queryLastMatch(userId);
+const daysSince = lastMatch ? calculateDays(lastMatch) : Infinity;
+
+// Tie-breaking: if multiple players have same priority, use random selection
+priority_score = daysSince;
 ```
 
 **Query for last played:**
@@ -288,10 +360,14 @@ priority_score = {
 ```sql
 SELECT MAX(matches.created_at) as last_played_at
 FROM match_participants
-JOIN matches ON match_participants.match_id = matches.match_id
+         JOIN matches ON match_participants.match_id = matches.match_id
 WHERE matches.state = 'complete'
   AND match_participants.discord_user_id = ?
 ```
+
+**Tie-breaking:**
+
+When multiple players have identical priority scores, use random selection to choose among them fairly.
 
 **Role composition validation:**
 
@@ -309,24 +385,33 @@ WHERE matches.state = 'complete'
 
 **Distribute players into two teams:**
 
-**By role:**
+**Target composition per team:**
 
 - Team 1: 1 tank, 2 DPS, 2 support
 - Team 2: 1 tank, 2 DPS, 2 support
 
-**By rank balance:**
+**Global balancing algorithm:**
 
-- Assign rank numerical values (bronze=1, silver=2, ..., grandmaster=7)
-- Calculate average rank per team
-- Use greedy algorithm to minimize rank difference between teams
+1. **Assign rank values:** bronze=1, silver=2, gold=3, platinum=4, diamond=5, master=6, grandmaster=7
 
-**Algorithm approach:**
+2. **Sort all 10 players by rank (descending)**
 
-1. Sort players by rank (descending)
-2. For each role group:
-    - Assign highest-ranked player to team with lower total rank
-    - Continue until all players assigned
-3. Result: roughly balanced teams by rank
+3. **Balance using greedy assignment:**
+   - For each player (starting with highest rank):
+     - Check which team has lower total rank value
+     - Try to assign player to lower-ranked team
+     - Constraint: must maintain role composition (1 tank, 2 DPS, 2 support per team)
+     - If role full on lower-ranked team, assign to other team
+
+4. **Result:** Balanced teams with similar total rank values while maintaining role requirements
+
+**Example:**
+```
+Players: GM tank, D tank, GM dps, D dps, D dps, D dps, GM sup, D sup, D sup, B sup
+Team 1: GM tank (7), D dps (5), D dps (5), GM sup (7), B sup (1) = 25
+Team 2: D tank (5), GM dps (7), D dps (5), D sup (5), D sup (5) = 27
+Difference: 2 points
+```
 
 ### Phase 4: Match Creation
 
@@ -358,7 +443,7 @@ prepared
   ↓
 active
   ↓
-[match completion command - future]
+[/match complete]
   ↓
 complete
 
@@ -369,20 +454,29 @@ complete
 
 ### `/makepug create`
 
+- "You don't have permission to manage matches. Ask an admin to set up PUG Leader role with `/setup pugleader`."
 - "A match is already prepared/active. Use `/makepug cancel` first or `/makepug start` to begin."
 - "Not enough players in voice channel. Need 10+, found X."
 - "Can't make balanced teams. Need 2+ tanks, 4+ DPS, 4+ support. Currently: X tanks, Y DPS, Z support."
-- "Player @User is not registered. They must use `/register` first."
 - "Main voice channel not configured. Use `/setup mainvc` first."
 
 ### `/makepug start`
 
+- "You don't have permission to manage matches."
 - "No prepared match found. Use `/makepug create` first."
 - "Match has already been started."
+- "⚠️ Warning: The following players have left the voice channel: @Player1, @Player2. Starting match anyway..."
 
 ### `/makepug cancel`
 
+- "You don't have permission to manage matches."
 - "No match to cancel."
+
+### `/match complete`
+
+- "You don't have permission to manage matches."
+- "No active match found."
+- "Match is not active. Current state: {state}"
 
 ### `/register`
 
@@ -393,6 +487,37 @@ complete
 
 - "This command can only be used in a server."
 - "No configuration found. Use `/setup` commands to configure the bot."
+
+## Permissions
+
+### PUG Leader Role
+
+Commands that require PUG Leader permissions:
+- `/makepug create`
+- `/makepug start`
+- `/makepug cancel`
+- `/match complete`
+
+**Permission check logic:**
+
+```javascript
+function hasMatchPermission(member, guildConfig) {
+    // Admins always have permission
+    if (member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return true;
+    }
+
+    // Check if PUG Leader role is configured and user has it
+    if (guildConfig.pug_leader_role_id) {
+        return member.roles.cache.has(guildConfig.pug_leader_role_id);
+    }
+
+    // If no PUG Leader role configured, only admins can manage
+    return false;
+}
+```
+
+**Implementation location:** `src/utils/permissions.ts`
 
 ## Voice Channel Management
 
@@ -421,16 +546,14 @@ await member.voice.setChannel(teamVcId);
 
 ## Future Enhancements
 
-### Phase 2 (Not Implementing Now)
+### Phase 2 (Deferred)
 
-- ELO rating system
-- Match completion with winner selection
-- Automatic win/loss tracking
+- Automatic win/loss tracking on match completion
 - Match history per player
-- Leaderboards
+- Leaderboards by role/rank
 - Statistics dashboard
 - Avoid repeat matchups (track recent games)
-- Weighted priority (configurable wait time multipliers)
+- Include/exclude parameters for `/makepug create`
 
 ### Phase 3 (Advanced)
 
@@ -481,15 +604,24 @@ discord-bot/
 │   │   ├── profile.ts
 │   │   ├── update.ts
 │   │   ├── setup.ts
-│   │   └── makepug.ts
+│   │   ├── roster.ts
+│   │   ├── makepug.ts
+│   │   ├── match.ts
+│   │   ├── schedulepug.ts
+│   │   ├── listpugs.ts
+│   │   └── cancelpug.ts
 │   ├── database/
 │   │   ├── init.ts
 │   │   ├── players.ts
 │   │   ├── matches.ts
-│   │   └── config.ts
+│   │   ├── config.ts
+│   │   └── scheduled_pugs.ts
+│   ├── services/
+│   │   └── scheduler.ts
 │   ├── utils/
 │   │   ├── matchmaking.ts
-│   │   └── balancing.ts
+│   │   ├── balancing.ts
+│   │   └── permissions.ts
 │   ├── types/
 │   │   └── index.ts
 │   ├── deploy-commands.ts
@@ -512,16 +644,44 @@ GUILD_ID=your_guild_id
 
 ## Implementation Priority
 
-1. ✅ Database setup
+### Completed ✅
+1. ✅ Database setup with initial schema
 2. ✅ `/register` command
-3. ✅ `/setup` command
-4. ✅ `/profile` command
-5. ✅ `/update` command
-6. **Next:** `/makepug create` (matchmaking algorithm)
-7. **Next:** `/makepug start` (player movement)
-8. **Next:** `/makepug cancel`
-9. **Future:** Match completion system
-10. **Future:** ELO system
+3. ✅ `/profile` command
+4. ✅ `/update` command
+5. ✅ `/setup` command (mainvc, team1vc, team2vc, automove, pugrole, announcementchannel, view)
+6. ✅ `/roster` command
+7. ✅ `/schedulepug` command with Discord event integration
+8. ✅ `/listpugs` command
+9. ✅ `/cancelpug` command with autocomplete
+10. ✅ Scheduler service with 24h/1h reminders
+
+### Phase 1: Core Match System (Current Focus)
+11. **Next:** Add `pug_leader_role_id` to database schema
+12. **Next:** Create `src/utils/permissions.ts` - helper for checking PUG leader permissions
+13. **Next:** Create `src/database/matches.ts` - match CRUD operations
+14. **Next:** Update `/setup` to add `pugleader` subcommand
+15. **Next:** Create `src/utils/matchmaking.ts` - player selection algorithm
+16. **Next:** Create `src/utils/balancing.ts` - global team balancing algorithm
+17. **Next:** Create `/makepug create` command
+18. **Next:** Create `/makepug start` command with VC validation
+19. **Next:** Create `/makepug cancel` command
+20. **Next:** Create `/match complete` command
+
+### Phase 2: Win/Loss Tracking & Stats
+21. **Future:** Automatic win/loss updates on match completion
+22. **Future:** Match history per player
+23. **Future:** Enhanced `/profile` with match history
+24. **Future:** Leaderboards by role/rank
+25. **Future:** Statistics dashboard
+
+### Phase 3: Advanced Features
+26. **Future:** ELO rating system
+27. **Future:** Avoid repeat matchups (track recent games)
+28. **Future:** Include/exclude parameters for `/makepug create`
+29. **Future:** Queue system for waiting players
+30. **Future:** Multiple concurrent matches
+31. **Future:** Web dashboard
 
 ---
 

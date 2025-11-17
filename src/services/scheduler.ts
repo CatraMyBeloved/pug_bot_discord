@@ -7,12 +7,10 @@ import {getGuildConfig} from '../database/config';
 export function initializeScheduler(client: Client, db: Database.Database): void {
     console.log('Initializing PUG scheduler...');
 
-    // Run every 5 minutes
     cron.schedule('*/5 * * * *', () => {
         checkAndSendReminders(client, db);
     });
 
-    // Perform initial check on startup
     checkAndSendReminders(client, db);
 
     console.log('PUG scheduler initialized');
@@ -27,19 +25,16 @@ async function checkAndSendReminders(client: Client, db: Database.Database): Pro
             const scheduledTime = new Date(pug.scheduled_time);
             const hoursUntil = (scheduledTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-            // Check if PUG is in the past - mark as completed
             if (hoursUntil < 0) {
                 updatePugState(db, pug.pug_id, 'completed');
                 continue;
             }
 
-            // 24h reminder window: 22-26 hours before
             if (!pug.reminder_24h_sent && hoursUntil >= 22 && hoursUntil <= 26) {
                 await sendReminder(client, db, pug, '24h');
                 markReminderSent(db, pug.pug_id, '24h');
             }
 
-            // 1h reminder window: 55 minutes - 1 hour 5 minutes before
             if (!pug.reminder_1h_sent && hoursUntil >= 0.916 && hoursUntil <= 1.083) {
                 await sendReminder(client, db, pug, '1h');
                 markReminderSent(db, pug.pug_id, '1h');

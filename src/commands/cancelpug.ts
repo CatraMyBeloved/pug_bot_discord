@@ -62,7 +62,6 @@ export async function execute(
             return;
         }
 
-        // Delete Discord event if it exists
         if (pug.discord_event_id) {
             try {
                 const event = await interaction.guild.scheduledEvents.fetch(pug.discord_event_id);

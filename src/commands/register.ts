@@ -31,7 +31,7 @@ export const data = new SlashCommandBuilder()
                 {name: 'Bronze', value: 'bronze'},
                 {name: 'Silver', value: 'silver'},
                 {name: 'Gold', value: 'gold'},
-                {name: 'Platin', value: 'platin'},
+                {name: 'platinum', value: 'platinum'},
                 {name: 'Diamond', value: 'diamond'},
                 {name: 'Master', value: 'master'},
                 {name: 'Grandmaster', value: 'grandmaster'},
@@ -55,7 +55,6 @@ export async function execute(
         return;
     }
 
-    // Save to database
     try {
         registerPlayer(db, discordUserId, battlenet, role, rank);
 
