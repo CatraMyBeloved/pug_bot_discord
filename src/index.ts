@@ -29,6 +29,13 @@ client.once('clientReady', () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
+    if (interaction.isAutocomplete()) {
+        if (interaction.commandName === 'cancelpug') {
+            await cancelpugCommand.autocomplete(interaction, db);
+        }
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === 'register') {

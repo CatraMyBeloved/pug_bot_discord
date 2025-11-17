@@ -1,6 +1,12 @@
-import {ChatInputCommandInteraction, MessageFlags, PermissionFlagsBits, SlashCommandBuilder} from 'discord.js';
+import {
+    AutocompleteInteraction,
+    ChatInputCommandInteraction,
+    MessageFlags,
+    PermissionFlagsBits,
+    SlashCommandBuilder
+} from 'discord.js';
 import Database from 'better-sqlite3';
-import {cancelScheduledPug, getScheduledPug} from '../database/scheduled_pugs';
+import {cancelScheduledPug, getScheduledPug, getUpcomingPugs} from '../database/scheduled_pugs';
 import {getGuildConfig} from '../database/config';
 
 export const data = new SlashCommandBuilder()
@@ -12,6 +18,7 @@ export const data = new SlashCommandBuilder()
             .setName('pug_id')
             .setDescription('The ID of the scheduled PUG to cancel')
             .setRequired(true)
+            .setAutocomplete(true)
     );
 
 export async function execute(
@@ -96,5 +103,46 @@ export async function execute(
             content: 'Failed to cancel scheduled PUG. Please try again.',
             flags: MessageFlags.Ephemeral,
         });
+    }
+}
+
+export async function autocomplete(
+    interaction: AutocompleteInteraction,
+    db: Database.Database
+) {
+    if (!interaction.guildId) {
+        await interaction.respond([]);
+        return;
+    }
+
+    try {
+        const pugs = getUpcomingPugs(db, interaction.guildId);
+
+        const choices = pugs.slice(0, 25).map(pug => {
+            const date = new Date(pug.scheduled_time);
+            const month = date.toLocaleString('en-US', {month: 'short', timeZone: 'UTC'});
+            const day = date.getUTCDate();
+            const hours = date.getUTCHours().toString().padStart(2, '0');
+            const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+
+            let name = `${month} ${day}, ${hours}:${minutes} UTC`;
+
+            const description = pug.discord_event_id ? 'PUG Match' : 'PUG Match';
+            name += ` - ${description} (ID: ${pug.pug_id})`;
+
+            if (name.length > 100) {
+                name = name.substring(0, 97) + '...';
+            }
+
+            return {
+                name: name,
+                value: pug.pug_id,
+            };
+        });
+
+        await interaction.respond(choices);
+    } catch (error) {
+        console.error('Autocomplete error:', error);
+        await interaction.respond([]);
     }
 }
