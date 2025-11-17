@@ -5,6 +5,8 @@ export interface GuildConfig {
     main_vc_id: string | null;
     team1_vc_id: string | null;
     team2_vc_id: string | null;
+    pug_role_id: string | null;
+    announcement_channel_id: string | null;
     auto_move: number;
     updated_at: string;
 }
@@ -71,4 +73,32 @@ export function setAutoMove(
                                             updated_at = CURRENT_TIMESTAMP
     `);
     stmt.run(guildId, enabled ? 1 : 0);
+}
+
+export function setPugRole(
+    db: Database.Database,
+    guildId: string,
+    roleId: string
+): void {
+    const stmt = db.prepare(`
+        INSERT INTO guild_config (guild_id, pug_role_id)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id) DO UPDATE SET pug_role_id = excluded.pug_role_id,
+                                            updated_at   = CURRENT_TIMESTAMP
+    `);
+    stmt.run(guildId, roleId);
+}
+
+export function setAnnouncementChannel(
+    db: Database.Database,
+    guildId: string,
+    channelId: string
+): void {
+    const stmt = db.prepare(`
+        INSERT INTO guild_config (guild_id, announcement_channel_id)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id) DO UPDATE SET announcement_channel_id = excluded.announcement_channel_id,
+                                            updated_at              = CURRENT_TIMESTAMP
+    `);
+    stmt.run(guildId, channelId);
 }

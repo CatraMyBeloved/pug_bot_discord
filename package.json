@@ -7,9 +7,11 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@types/node-cron": "^3.0.11",
     "better-sqlite3": "^12.4.1",
     "discord.js": "^14.24.2",
     "dotenv": "^17.2.3",
+    "node-cron": "^4.2.1",
     "pnpm": "^10.22.0"
   },
   "devDependencies": {

@@ -5,6 +5,9 @@ import {data as setupCommand} from './commands/setup';
 import {data as profileCommand} from './commands/profile';
 import {data as updateCommand} from './commands/update';
 import {data as rosterCommand} from './commands/roster';
+import {data as schedulepugCommand} from './commands/schedulepug';
+import {data as listpugsCommand} from './commands/listpugs';
+import {data as cancelpugCommand} from './commands/cancelpug';
 
 dotenv.config();
 
@@ -14,6 +17,9 @@ const commands = [
     profileCommand.toJSON(),
     updateCommand.toJSON(),
     rosterCommand.toJSON(),
+    schedulepugCommand.toJSON(),
+    listpugsCommand.toJSON(),
+    cancelpugCommand.toJSON(),
 ];
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN!);

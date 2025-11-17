@@ -81,6 +81,7 @@ export function initDatabase(): Database.Database {
             main_vc_id  TEXT,
             team1_vc_id TEXT,
             team2_vc_id TEXT,
+            pug_role_id TEXT,
             auto_move   INTEGER NOT NULL DEFAULT 1,
             updated_at  DATETIME         DEFAULT CURRENT_TIMESTAMP
         );
@@ -123,7 +124,29 @@ export function initDatabase(): Database.Database {
 
         CREATE INDEX IF NOT EXISTS idx_players_role ON players (role);
         CREATE INDEX IF NOT EXISTS idx_matches_state ON matches (state);
+
+        CREATE TABLE IF NOT EXISTS scheduled_pugs
+        (
+            pug_id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id          TEXT     NOT NULL,
+            scheduled_time    DATETIME NOT NULL,
+            created_by        TEXT     NOT NULL,
+            discord_event_id  TEXT,
+            state             TEXT              DEFAULT 'pending',
+            reminder_24h_sent INTEGER  NOT NULL DEFAULT 0,
+            reminder_1h_sent  INTEGER  NOT NULL DEFAULT 0,
+            created_at        DATETIME          DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_scheduled_pugs_guild_time_state
+            ON scheduled_pugs (guild_id, scheduled_time, state);
     `);
+
+    try {
+        db.exec(`ALTER TABLE guild_config
+            ADD COLUMN announcement_channel_id TEXT`);
+    } catch (error) {
+    }
 
     console.log('Database initialized');
     return db;
