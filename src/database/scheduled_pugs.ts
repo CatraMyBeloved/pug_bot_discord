@@ -45,7 +45,7 @@ export function getUpcomingPugs(
         FROM scheduled_pugs
         WHERE guild_id = ?
           AND state = 'pending'
-        ORDER BY scheduled_time ASC
+        ORDER BY scheduled_time
     `);
     return stmt.all(guildId) as ScheduledPug[];
 }

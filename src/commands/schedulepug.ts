@@ -133,7 +133,7 @@ export async function execute(
         const timestamp = Math.floor(scheduledTime.getTime() / 1000);
         let response = `PUG scheduled successfully!\n\n`;
         response += `**ID:** ${pugId}\n`;
-        response += `**Time:** <t:${timestamp}:F> (will display in everyone's local timezone)\n`;
+        response += `**Time:** <t:${timestamp}:F> \n`;
         response += `**Description:** ${description}\n`;
 
         if (discordEventId) {
