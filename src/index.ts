@@ -5,12 +5,14 @@ import * as registerCommand from './commands/register';
 import * as setupCommand from './commands/setup';
 import * as profileCommand from './commands/profile';
 import * as updateCommand from './commands/update';
+import * as rosterCommand from './commands/roster';
 
 dotenv.config();
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildVoiceStates,
     ],
 });
 
@@ -34,6 +36,9 @@ client.on('interactionCreate', async (interaction) => {
     }
     if (interaction.commandName === 'update') {
         await updateCommand.execute(interaction, db);
+    }
+    if (interaction.commandName === 'roster') {
+        await rosterCommand.execute(interaction, db);
     }
 });
 

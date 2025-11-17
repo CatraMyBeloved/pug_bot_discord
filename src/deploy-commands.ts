@@ -4,6 +4,7 @@ import {data as registerCommand} from './commands/register';
 import {data as setupCommand} from './commands/setup';
 import {data as profileCommand} from './commands/profile';
 import {data as updateCommand} from './commands/update';
+import {data as rosterCommand} from './commands/roster';
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ const commands = [
     setupCommand.toJSON(),
     profileCommand.toJSON(),
     updateCommand.toJSON(),
+    rosterCommand.toJSON(),
 ];
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
