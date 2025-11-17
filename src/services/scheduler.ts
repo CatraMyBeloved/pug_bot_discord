@@ -72,7 +72,7 @@ async function sendReminder(
         }
 
         const timestamp = Math.floor(new Date(pug.scheduled_time).getTime() / 1000);
-        const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '@everyone';
+        const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '';
 
         let message: string;
         if (reminderType === '24h') {
@@ -87,6 +87,7 @@ async function sendReminder(
             try {
                 const guild = await client.guilds.fetch(pug.guild_id);
                 const event = await guild.scheduledEvents.fetch(pug.discord_event_id);
+                // @ts-ignore
                 message += `Event: ${event.url}\n`;
             } catch (error) {
                 console.warn(`Could not fetch Discord event ${pug.discord_event_id}`);
@@ -97,7 +98,9 @@ async function sendReminder(
             message += `\nGet ready to join the main voice channel!`;
         }
 
-        await channel.send(message);
+        if ("send" in channel) {
+            await channel.send(message);
+        }
         console.log(`Sent ${reminderType} reminder for PUG ${pug.pug_id} in guild ${pug.guild_id}`);
     } catch (error) {
         console.error(`Error sending reminder for PUG ${pug.pug_id}:`, error);
