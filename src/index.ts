@@ -10,6 +10,8 @@ import * as rosterCommand from './commands/roster';
 import * as schedulepugCommand from './commands/schedulepug';
 import * as listpugsCommand from './commands/listpugs';
 import * as cancelpugCommand from './commands/cancelpug';
+import * as makepugCommand from './commands/makepug';
+import * as matchCommand from './commands/match';
 
 dotenv.config();
 
@@ -61,6 +63,12 @@ client.on('interactionCreate', async (interaction) => {
     }
     if (interaction.commandName === 'cancelpug') {
         await cancelpugCommand.execute(interaction, db);
+    }
+    if (interaction.commandName === 'makepug') {
+        await makepugCommand.execute(interaction, db);
+    }
+    if (interaction.commandName === 'match') {
+        await matchCommand.execute(interaction, db);
     }
 });
 

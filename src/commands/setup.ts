@@ -11,6 +11,7 @@ import {
     setAnnouncementChannel,
     setAutoMove,
     setMainVC,
+    setPugLeaderRole,
     setPugRole,
     setTeam1VC,
     setTeam2VC
@@ -75,6 +76,17 @@ export const data = new SlashCommandBuilder()
                 option
                     .setName('role')
                     .setDescription('The role to assign to PUG players')
+                    .setRequired(true)
+            )
+    )
+    .addSubcommand(subcommand =>
+        subcommand
+            .setName('pugleader')
+            .setDescription('Set the PUG Leader role (allowed to create/manage matches)')
+            .addRoleOption(option =>
+                option
+                    .setName('role')
+                    .setDescription('The role allowed to manage matches')
                     .setRequired(true)
             )
     )
@@ -162,6 +174,16 @@ export async function execute(
                 break;
             }
 
+            case 'pugleader': {
+                const role = interaction.options.getRole('role', true);
+                setPugLeaderRole(db, interaction.guildId, role.id);
+                await interaction.reply({
+                    content: `PUG Leader role set to ${role}\n\nUsers with this role can create and manage matches.`,
+                    flags: MessageFlags.Ephemeral,
+                });
+                break;
+            }
+
             case 'announcementchannel': {
                 const channel = interaction.options.getChannel('channel', true);
                 setAnnouncementChannel(db, interaction.guildId, channel.id);
@@ -187,6 +209,7 @@ export async function execute(
                 const team1VC = config.team1_vc_id ? `<#${config.team1_vc_id}>` : 'Not set';
                 const team2VC = config.team2_vc_id ? `<#${config.team2_vc_id}>` : 'Not set';
                 const pugRole = config.pug_role_id ? `<@&${config.pug_role_id}>` : 'Not set';
+                const pugLeaderRole = config.pug_leader_role_id ? `<@&${config.pug_leader_role_id}>` : 'Not set';
                 const announcementChannel = config.announcement_channel_id ? `<#${config.announcement_channel_id}>` : 'Not set';
                 const autoMove = config.auto_move === 1 ? 'Enabled' : 'Disabled';
 
@@ -197,6 +220,7 @@ export async function execute(
 **Team 1 VC:** ${team1VC}
 **Team 2 VC:** ${team2VC}
 **PUG Role:** ${pugRole}
+**PUG Leader Role:** ${pugLeaderRole}
 **Announcement Channel:** ${announcementChannel}
 **Auto-move:** ${autoMove}`,
                     flags: MessageFlags.Ephemeral,

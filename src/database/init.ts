@@ -85,7 +85,7 @@ export function initDatabase(): Database.Database {
                 NOT
                     NULL
                 DEFAULT
-                    'active',
+                    'prepared',
             created_at
                 DATETIME
                 DEFAULT
