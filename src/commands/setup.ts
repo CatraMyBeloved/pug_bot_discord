@@ -16,10 +16,11 @@ import {
     setTeam1VC,
     setTeam2VC
 } from '../database/config';
+import {hasMatchPermission} from '../utils/permissions';
 
 export const data = new SlashCommandBuilder()
     .setName('setup')
-    .setDescription('Configure PUG bot settings (Admin only)')
+    .setDescription('Configure PUG bot settings (Admin or PUG Leader)')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(subcommand =>
         subcommand
@@ -115,6 +116,15 @@ export async function execute(
     if (!interaction.guildId) {
         await interaction.reply({
             content: 'This command can only be used in a server.',
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
+    const config = getGuildConfig(db, interaction.guildId);
+    if (!hasMatchPermission(interaction.member as any, config)) {
+        await interaction.reply({
+            content: 'You need Administrator permission or the PUG Leader role to use this command.',
             flags: MessageFlags.Ephemeral,
         });
         return;
