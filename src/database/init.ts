@@ -25,10 +25,6 @@ export function initDatabase(): Database.Database {
                 TEXT
                 NOT
                     NULL,
-            role
-                TEXT
-                NOT
-                    NULL,
             rank
                 TEXT
                 NOT
@@ -49,6 +45,32 @@ export function initDatabase(): Database.Database {
                 DATETIME
                 DEFAULT
                     CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS player_roles
+        (
+            discord_user_id
+                TEXT
+                NOT
+                    NULL,
+            role
+                TEXT
+                NOT
+                    NULL,
+            PRIMARY
+                KEY
+                (
+                 discord_user_id,
+                 role
+                    ),
+            FOREIGN KEY
+                (
+                 discord_user_id
+                    ) REFERENCES players
+                (
+                 discord_user_id
+                    )
+                    ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS matches
@@ -100,6 +122,10 @@ export function initDatabase(): Database.Database {
                 INTEGER
                 NOT
                     NULL,
+            assigned_role
+                TEXT
+                NOT
+                    NULL,
             PRIMARY
                 KEY
                 (
@@ -122,7 +148,7 @@ export function initDatabase(): Database.Database {
                     )
         );
 
-        CREATE INDEX IF NOT EXISTS idx_players_role ON players (role);
+        CREATE INDEX IF NOT EXISTS idx_player_roles_role ON player_roles (role);
         CREATE INDEX IF NOT EXISTS idx_matches_state ON matches (state);
 
         CREATE TABLE IF NOT EXISTS scheduled_pugs
@@ -145,6 +171,12 @@ export function initDatabase(): Database.Database {
     try {
         db.exec(`ALTER TABLE guild_config
             ADD COLUMN announcement_channel_id TEXT`);
+    } catch (error) {
+    }
+
+    try {
+        db.exec(`ALTER TABLE guild_config
+            ADD COLUMN pug_leader_role_id TEXT`);
     } catch (error) {
     }
 

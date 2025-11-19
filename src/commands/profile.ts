@@ -42,11 +42,15 @@ export async function execute(
         ? 'No games played yet'
         : `${totalGames} game${totalGames !== 1 ? 's' : ''} played`;
 
+    const rolesText = player.roles && player.roles.length > 0
+        ? player.roles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(', ')
+        : 'None';
+
     await interaction.reply({
         content: `**Profile: ${targetUser.username}**
 
 **BattleNet:** ${player.battlenet_id}
-**Role:** ${player.role.charAt(0).toUpperCase() + player.role.slice(1)}
+**Roles:** ${rolesText}
 **Rank:** ${player.rank.charAt(0).toUpperCase() + player.rank.slice(1)}
 
 **Stats:**

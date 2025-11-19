@@ -13,14 +13,9 @@ export const data = new SlashCommandBuilder()
     )
     .addStringOption(option =>
         option
-            .setName('role')
-            .setDescription('Your preferred role')
+            .setName('roles')
+            .setDescription('Roles you can play (separated by commas: tank,dps,support)')
             .setRequired(false)
-            .addChoices(
-                {name: 'Tank', value: 'tank'},
-                {name: 'DPS', value: 'dps'},
-                {name: 'Support', value: 'support'},
-            )
     )
     .addStringOption(option =>
         option
@@ -31,7 +26,7 @@ export const data = new SlashCommandBuilder()
                 {name: 'Bronze', value: 'bronze'},
                 {name: 'Silver', value: 'silver'},
                 {name: 'Gold', value: 'gold'},
-                {name: 'platinum', value: 'platinum'},
+                {name: 'Platinum', value: 'platinum'},
                 {name: 'Diamond', value: 'diamond'},
                 {name: 'Master', value: 'master'},
                 {name: 'Grandmaster', value: 'grandmaster'},
@@ -53,10 +48,10 @@ export async function execute(
     }
 
     const battlenet = interaction.options.getString('battlenet');
-    const role = interaction.options.getString('role');
+    const rolesInput = interaction.options.getString('roles');
     const rank = interaction.options.getString('rank');
 
-    if (!battlenet && !role && !rank) {
+    if (!battlenet && !rolesInput && !rank) {
         await interaction.reply({
             content: 'Please provide at least one field to update.',
             flags: MessageFlags.Ephemeral,
@@ -64,12 +59,32 @@ export async function execute(
         return;
     }
 
+    let roles: string[] | undefined = undefined;
+    if (rolesInput) {
+        const validRoles = ['tank', 'dps', 'support'];
+        const parsedRoles = rolesInput
+            .toLowerCase()
+            .split(',')
+            .map(r => r.trim())
+            .filter(r => validRoles.includes(r));
+
+        roles = [...new Set(parsedRoles)];
+
+        if (roles.length === 0) {
+            await interaction.reply({
+                content: 'Invalid roles! Please use: tank, dps, or support (separated by commas).\nExample: `tank,dps` or `support` or `tank,dps,support`',
+                flags: MessageFlags.Ephemeral,
+            });
+            return;
+        }
+    }
+
     try {
-        updatePlayer(db, discordUserId, battlenet ?? undefined, role ?? undefined, rank ?? undefined);
+        updatePlayer(db, discordUserId, battlenet ?? undefined, roles, rank ?? undefined);
 
         const updates: string[] = [];
         if (battlenet) updates.push(`**BattleNet:** ${battlenet}`);
-        if (role) updates.push(`**Role:** ${role}`);
+        if (roles) updates.push(`**Roles:** ${roles.join(', ')}`);
         if (rank) updates.push(`**Rank:** ${rank}`);
 
         await interaction.reply({

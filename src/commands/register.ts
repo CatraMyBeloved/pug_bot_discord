@@ -13,14 +13,9 @@ export const data = new SlashCommandBuilder()
     )
     .addStringOption(option =>
         option
-            .setName('role')
-            .setDescription('Your preferred role')
+            .setName('roles')
+            .setDescription('Roles you can play (select multiple, separated by commas: tank,dps,support)')
             .setRequired(true)
-            .addChoices(
-                {name: 'Tank', value: 'tank'},
-                {name: 'DPS', value: 'dps'},
-                {name: 'Support', value: 'support'},
-            )
     )
     .addStringOption(option =>
         option
@@ -31,7 +26,7 @@ export const data = new SlashCommandBuilder()
                 {name: 'Bronze', value: 'bronze'},
                 {name: 'Silver', value: 'silver'},
                 {name: 'Gold', value: 'gold'},
-                {name: 'platinum', value: 'platinum'},
+                {name: 'Platinum', value: 'platinum'},
                 {name: 'Diamond', value: 'diamond'},
                 {name: 'Master', value: 'master'},
                 {name: 'Grandmaster', value: 'grandmaster'},
@@ -44,7 +39,7 @@ export async function execute(
 ) {
     const discordUserId = interaction.user.id;
     const battlenet = interaction.options.getString('battlenet', true);
-    const role = interaction.options.getString('role', true);
+    const rolesInput = interaction.options.getString('roles', true);
     const rank = interaction.options.getString('rank', true);
 
     if (isPlayerRegistered(db, discordUserId)) {
@@ -55,14 +50,31 @@ export async function execute(
         return;
     }
 
+    const validRoles = ['tank', 'dps', 'support'];
+    const roles = rolesInput
+        .toLowerCase()
+        .split(',')
+        .map(r => r.trim())
+        .filter(r => validRoles.includes(r));
+
+    const uniqueRoles = [...new Set(roles)];
+
+    if (uniqueRoles.length === 0) {
+        await interaction.reply({
+            content: 'Invalid roles! Please use: tank, dps, or support (separated by commas).\nExample: `tank,dps` or `support` or `tank,dps,support`',
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
     try {
-        registerPlayer(db, discordUserId, battlenet, role, rank);
+        registerPlayer(db, discordUserId, battlenet, uniqueRoles, rank);
 
         await interaction.reply({
             content: `Registered successfully!
-      
+
 **BattleNet:** ${battlenet}
-**Role:** ${role}
+**Roles:** ${uniqueRoles.join(', ')}
 **Rank:** ${rank}`,
             flags: MessageFlags.Ephemeral,
         });

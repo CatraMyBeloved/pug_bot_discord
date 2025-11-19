@@ -51,10 +51,12 @@ export async function execute(
         }
 
         const unregistered: string[] = [];
-        const registered: { username: string; role: string }[] = [];
-        let tanks = 0;
-        let dps = 0;
-        let supports = 0;
+        const registered: { username: string; roles: string[] }[] = [];
+        const roleCounts = {
+            tank: new Set<string>(),
+            dps: new Set<string>(),
+            support: new Set<string>()
+        };
 
         members.forEach(member => {
             const player = getPlayer(db, member.id);
@@ -64,22 +66,22 @@ export async function execute(
             } else {
                 registered.push({
                     username: member.user.username,
-                    role: player.role,
+                    roles: player.roles || [],
                 });
 
-                switch (player.role) {
-                    case 'tank':
-                        tanks++;
-                        break;
-                    case 'dps':
-                        dps++;
-                        break;
-                    case 'support':
-                        supports++;
-                        break;
+                if (player.roles) {
+                    for (const role of player.roles) {
+                        if (role === 'tank') roleCounts.tank.add(member.id);
+                        if (role === 'dps') roleCounts.dps.add(member.id);
+                        if (role === 'support') roleCounts.support.add(member.id);
+                    }
                 }
             }
         });
+
+        const tanks = roleCounts.tank.size;
+        const dps = roleCounts.dps.size;
+        const supports = roleCounts.support.size;
 
         const hasEnoughPlayers = tanks >= 2 && dps >= 4 && supports >= 4;
         const totalRegistered = registered.length;

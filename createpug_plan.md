@@ -8,8 +8,14 @@ balanced teams, and manages match flow.
 
 ## Design Decisions
 
+**Multi-Role System:**
+- Players can register for multiple roles (tank, dps, support)
+- Matchmaking selects players in order of scarcity (tanks → supports → dps)
+- Players are assigned to their first available role that needs filling
+- Priority tracking is per-role (encourages role diversity)
+
 **Matchmaking:**
-- Player selection based on time since last match (fairest for community play)
+- Player selection based on time since last match per role (fairest for community play)
 - Tie-breaking uses random selection when priority scores are equal
 - Global team balancing algorithm for better rank distribution across teams
 - No include/exclude parameters initially (deferred to Phase 2 for cleaner UX)
@@ -39,14 +45,25 @@ CREATE TABLE players
 (
     discord_user_id TEXT PRIMARY KEY,
     battlenet_id    TEXT    NOT NULL,
-    role            TEXT    NOT NULL, -- 'tank', 'dps', 'support'
     rank            TEXT    NOT NULL, -- 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'grandmaster'
     wins            INTEGER NOT NULL DEFAULT 0,
     losses          INTEGER NOT NULL DEFAULT 0,
     registered_at   DATETIME         DEFAULT CURRENT_TIMESTAMP
 );
+```
 
-CREATE INDEX idx_players_role ON players (role);
+### player_roles
+
+```sql
+CREATE TABLE player_roles
+(
+    discord_user_id TEXT NOT NULL,
+    role            TEXT NOT NULL, -- 'tank', 'dps', 'support'
+    PRIMARY KEY (discord_user_id, role),
+    FOREIGN KEY (discord_user_id) REFERENCES players (discord_user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_player_roles_role ON player_roles (role);
 ```
 
 ### matches
@@ -104,7 +121,7 @@ Register for PUG matches.
 **Parameters:**
 
 - `battlenet` (string, required): BattleNet ID (e.g., Player#1234)
-- `role` (choice, required): tank | dps | support
+- `roles` (string, required): Comma-separated roles (e.g., "tank,dps" or "support")
 - `rank` (choice, required): bronze | silver | gold | platinum | diamond | master | grandmaster
 
 **Behavior:**
@@ -119,7 +136,7 @@ Register for PUG matches.
 Registered successfully!
 
 BattleNet: Player#1234
-Role: dps
+Roles: tank, dps
 Rank: diamond
 ```
 
@@ -355,7 +372,7 @@ const daysSince = lastMatch ? calculateDays(lastMatch) : Infinity;
 priority_score = daysSince;
 ```
 
-**Query for last played:**
+**Query for last played (per role):**
 
 ```sql
 SELECT MAX(matches.created_at) as last_played_at
@@ -363,6 +380,7 @@ FROM match_participants
          JOIN matches ON match_participants.match_id = matches.match_id
 WHERE matches.state = 'complete'
   AND match_participants.discord_user_id = ?
+  AND match_participants.assigned_role = ?  -- Track by role
 ```
 
 **Tie-breaking:**
@@ -371,15 +389,28 @@ When multiple players have identical priority scores, use random selection to ch
 
 **Role composition validation:**
 
-- Count available players by role
-- Required: ≥2 tanks, ≥4 DPS, ≥4 support
+- Get all players in VC with their available roles
+- Build pools: players who CAN play tank, dps, support (players can be in multiple pools)
+- Required: ≥2 players who can tank, ≥4 who can dps, ≥4 who can support
 - If insufficient: fail with composition error
 
-**Select 10 players:**
+**Select 10 players (in order of scarcity):**
 
-1. Sort tanks by priority score → pick top 2
-2. Sort DPS by priority score → pick top 4
-3. Sort support by priority score → pick top 4
+1. **Tanks first** (usually scarcest):
+   - Sort tank-capable players by priority for tank role
+   - Pick top 2
+   - Remove selected players from all pools
+
+2. **Supports second**:
+   - Sort remaining support-capable players by priority for support role
+   - Pick top 4
+   - Remove selected players from all pools
+
+3. **DPS last**:
+   - Sort remaining dps-capable players by priority for dps role
+   - Pick top 4
+
+**Result:** 10 players each with assigned role based on what the matchmaker selected them for
 
 ### Phase 3: Team Balancing
 
