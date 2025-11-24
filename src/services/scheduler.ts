@@ -67,7 +67,7 @@ async function sendReminder(
         }
 
         const timestamp = Math.floor(new Date(pug.scheduled_time).getTime() / 1000);
-        const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '';
+        const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '**PUG Reminder:**';
 
         let message: string;
         if (reminderType === '24h') {

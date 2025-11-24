@@ -1,18 +1,19 @@
 import {
     AutocompleteInteraction,
     ChatInputCommandInteraction,
+    GuildMember,
     MessageFlags,
     PermissionFlagsBits,
     SlashCommandBuilder
 } from 'discord.js';
 import Database from 'better-sqlite3';
 import {cancelScheduledPug, getScheduledPug, getUpcomingPugs} from '../database/scheduled_pugs';
-import {getGuildConfig} from '../database/config';
+import {getGuildConfig, getPugLeaderRoles} from '../database/config';
+import {hasMatchPermission} from '../utils/permissions';
 
 export const data = new SlashCommandBuilder()
     .setName('cancelpug')
     .setDescription('Cancel a scheduled PUG')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addIntegerOption(option =>
         option
             .setName('pug_id')
@@ -28,6 +29,18 @@ export async function execute(
     if (!interaction.guildId || !interaction.guild) {
         await interaction.reply({
             content: 'This command can only be used in a server.',
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
+    const member = interaction.member as GuildMember;
+    const config = getGuildConfig(db, interaction.guildId);
+    const pugLeaderRoles = getPugLeaderRoles(db, interaction.guildId);
+
+    if (!hasMatchPermission(member, config, pugLeaderRoles)) {
+        await interaction.reply({
+            content: "You don't have permission to cancel matches. Ask an admin to set up PUG Leader roles with `/setup pugleader add`.",
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -79,7 +92,7 @@ export async function execute(
                 const channel = await interaction.client.channels.fetch(config.announcement_channel_id);
                 if (channel && channel.isTextBased()) {
                     const timestamp = Math.floor(new Date(pug.scheduled_time).getTime() / 1000);
-                    const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '';
+                    const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '**PUG Update:**';
 
                     if ("send" in channel) {
                         await channel.send(

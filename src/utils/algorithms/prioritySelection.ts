@@ -88,6 +88,17 @@ export function selectPlayersByPriority(
             (p) => !selectedUserIds.has(p.userId)
         );
 
+        if (availablePlayers.length < count) {
+            throw new InsufficientRoleCompositionError(
+                requiredRoles,
+                {
+                    tank: role === 'tank' ? availablePlayers.length : requiredRoles.tank,
+                    dps: role === 'dps' ? availablePlayers.length : requiredRoles.dps,
+                    support: role === 'support' ? availablePlayers.length : requiredRoles.support,
+                }
+            );
+        }
+
         const playersWithScores = availablePlayers.map((player) => ({
             player,
             score: getPriorityScore(player.userId, role),

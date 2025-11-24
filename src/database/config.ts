@@ -117,3 +117,36 @@ export function setPugLeaderRole(
     `);
     stmt.run(guildId, roleId);
 }
+
+export function getPugLeaderRoles(
+    db: Database.Database,
+    guildId: string
+): string[] {
+    const stmt = db.prepare('SELECT role_id FROM guild_pug_leader_roles WHERE guild_id = ?');
+    const rows = stmt.all(guildId) as { role_id: string }[];
+    return rows.map(r => r.role_id);
+}
+
+export function addPugLeaderRole(
+    db: Database.Database,
+    guildId: string,
+    roleId: string
+): boolean {
+    const stmt = db.prepare(`
+        INSERT INTO guild_pug_leader_roles (guild_id, role_id)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id, role_id) DO NOTHING
+    `);
+    const result = stmt.run(guildId, roleId);
+    return result.changes > 0;
+}
+
+export function removePugLeaderRole(
+    db: Database.Database,
+    guildId: string,
+    roleId: string
+): boolean {
+    const stmt = db.prepare('DELETE FROM guild_pug_leader_roles WHERE guild_id = ? AND role_id = ?');
+    const result = stmt.run(guildId, roleId);
+    return result.changes > 0;
+}

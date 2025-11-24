@@ -7,11 +7,13 @@ import {
 } from 'discord.js';
 import Database from 'better-sqlite3';
 import {
+    addPugLeaderRole,
     getGuildConfig,
+    getPugLeaderRoles,
+    removePugLeaderRole,
     setAnnouncementChannel,
     setAutoMove,
     setMainVC,
-    setPugLeaderRole,
     setPugRole,
     setTeam1VC,
     setTeam2VC
@@ -21,7 +23,6 @@ import {hasMatchPermission} from '../utils/permissions';
 export const data = new SlashCommandBuilder()
     .setName('setup')
     .setDescription('Configure PUG bot settings (Admin or PUG Leader)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(subcommand =>
         subcommand
             .setName('mainvc')
@@ -80,15 +81,36 @@ export const data = new SlashCommandBuilder()
                     .setRequired(true)
             )
     )
-    .addSubcommand(subcommand =>
-        subcommand
+    .addSubcommandGroup(group =>
+        group
             .setName('pugleader')
-            .setDescription('Set the PUG Leader role (allowed to create/manage matches)')
-            .addRoleOption(option =>
-                option
-                    .setName('role')
-                    .setDescription('The role allowed to manage matches')
-                    .setRequired(true)
+            .setDescription('Manage PUG Leader roles')
+            .addSubcommand(subcommand =>
+                subcommand
+                    .setName('add')
+                    .setDescription('Add a role that can manage PUGs')
+                    .addRoleOption(option =>
+                        option
+                            .setName('role')
+                            .setDescription('The role to add')
+                            .setRequired(true)
+                    )
+            )
+            .addSubcommand(subcommand =>
+                subcommand
+                    .setName('remove')
+                    .setDescription('Remove a role from managing PUGs')
+                    .addRoleOption(option =>
+                        option
+                            .setName('role')
+                            .setDescription('The role to remove')
+                            .setRequired(true)
+                    )
+            )
+            .addSubcommand(subcommand =>
+                subcommand
+                    .setName('list')
+                    .setDescription('List all PUG Leader roles')
             )
     )
     .addSubcommand(subcommand =>
@@ -122,14 +144,16 @@ export async function execute(
     }
 
     const config = getGuildConfig(db, interaction.guildId);
-    if (!hasMatchPermission(interaction.member as any, config)) {
+    const pugLeaderRoles = getPugLeaderRoles(db, interaction.guildId);
+    if (!hasMatchPermission(interaction.member as any, config, pugLeaderRoles)) {
         await interaction.reply({
-            content: 'You need Administrator permission or the PUG Leader role to use this command.',
+            content: 'You need Administrator permission or a PUG Leader role to use this command.',
             flags: MessageFlags.Ephemeral,
         });
         return;
     }
 
+    const subcommandGroup = interaction.options.getSubcommandGroup(false);
     const subcommand = interaction.options.getSubcommand();
 
     try {
@@ -184,13 +208,57 @@ export async function execute(
                 break;
             }
 
-            case 'pugleader': {
+            case 'add': {
+                if (subcommandGroup !== 'pugleader') break;
                 const role = interaction.options.getRole('role', true);
-                setPugLeaderRole(db, interaction.guildId, role.id);
-                await interaction.reply({
-                    content: `PUG Leader role set to ${role}\n\nUsers with this role can create and manage matches.`,
-                    flags: MessageFlags.Ephemeral,
-                });
+                const added = addPugLeaderRole(db, interaction.guildId, role.id);
+                if (added) {
+                    await interaction.reply({
+                        content: `Added ${role} as a PUG Leader role.\n\nUsers with this role can now create and manage matches.`,
+                        flags: MessageFlags.Ephemeral,
+                    });
+                } else {
+                    await interaction.reply({
+                        content: `${role} is already a PUG Leader role.`,
+                        flags: MessageFlags.Ephemeral,
+                    });
+                }
+                break;
+            }
+
+            case 'remove': {
+                if (subcommandGroup !== 'pugleader') break;
+                const role = interaction.options.getRole('role', true);
+                const removed = removePugLeaderRole(db, interaction.guildId, role.id);
+                if (removed) {
+                    await interaction.reply({
+                        content: `Removed ${role} from PUG Leader roles.`,
+                        flags: MessageFlags.Ephemeral,
+                    });
+                } else {
+                    await interaction.reply({
+                        content: `${role} was not a PUG Leader role.`,
+                        flags: MessageFlags.Ephemeral,
+                    });
+                }
+                break;
+            }
+
+            case 'list': {
+                if (subcommandGroup !== 'pugleader') break;
+                const roles = getPugLeaderRoles(db, interaction.guildId);
+                if (roles.length === 0) {
+                    await interaction.reply({
+                        content: 'No PUG Leader roles configured. Only Administrators can manage matches.',
+                        flags: MessageFlags.Ephemeral,
+                    });
+                } else {
+                    const roleList = roles.map(id => `<@&${id}>`).join('\n');
+                    await interaction.reply({
+                        content: `**PUG Leader Roles:**\n${roleList}`,
+                        flags: MessageFlags.Ephemeral,
+                    });
+                }
                 break;
             }
 
@@ -219,7 +287,10 @@ export async function execute(
                 const team1VC = config.team1_vc_id ? `<#${config.team1_vc_id}>` : 'Not set';
                 const team2VC = config.team2_vc_id ? `<#${config.team2_vc_id}>` : 'Not set';
                 const pugRole = config.pug_role_id ? `<@&${config.pug_role_id}>` : 'Not set';
-                const pugLeaderRole = config.pug_leader_role_id ? `<@&${config.pug_leader_role_id}>` : 'Not set';
+                const leaderRoles = getPugLeaderRoles(db, interaction.guildId);
+                const pugLeaderRolesDisplay = leaderRoles.length > 0
+                    ? leaderRoles.map(id => `<@&${id}>`).join(', ')
+                    : 'Not set';
                 const announcementChannel = config.announcement_channel_id ? `<#${config.announcement_channel_id}>` : 'Not set';
                 const autoMove = config.auto_move === 1 ? 'Enabled' : 'Disabled';
 
@@ -230,7 +301,7 @@ export async function execute(
 **Team 1 VC:** ${team1VC}
 **Team 2 VC:** ${team2VC}
 **PUG Role:** ${pugRole}
-**PUG Leader Role:** ${pugLeaderRole}
+**PUG Leader Roles:** ${pugLeaderRolesDisplay}
 **Announcement Channel:** ${announcementChannel}
 **Auto-move:** ${autoMove}`,
                     flags: MessageFlags.Ephemeral,

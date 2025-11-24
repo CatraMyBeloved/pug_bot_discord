@@ -1,6 +1,6 @@
 import {ChatInputCommandInteraction, GuildMember, MessageFlags, SlashCommandBuilder, VoiceChannel,} from 'discord.js';
 import Database from 'better-sqlite3';
-import {getGuildConfig} from '../database/config';
+import {getGuildConfig, getPugLeaderRoles} from '../database/config';
 import {cancelMatch, createMatch, getCurrentMatch, getMatchParticipants, startMatch,} from '../database/matches';
 import {hasMatchPermission} from '../utils/permissions';
 import {createMatchTeams} from '../utils/matchmaking';
@@ -37,11 +37,12 @@ export async function execute(
 
     const member = interaction.member as GuildMember;
     const config = getGuildConfig(db, interaction.guildId);
+    const pugLeaderRoles = getPugLeaderRoles(db, interaction.guildId);
 
-    if (!hasMatchPermission(member, config)) {
+    if (!hasMatchPermission(member, config, pugLeaderRoles)) {
         await interaction.reply({
             content:
-                "You don't have permission to manage matches. Ask an admin to set up PUG Leader role with `/setup pugleader`.",
+                "You don't have permission to manage matches. Ask an admin to set up PUG Leader roles with `/setup pugleader add`.",
             flags: MessageFlags.Ephemeral,
         });
         return;

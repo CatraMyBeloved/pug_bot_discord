@@ -1,6 +1,6 @@
 import {ChatInputCommandInteraction, GuildMember, MessageFlags, SlashCommandBuilder,} from 'discord.js';
 import Database from 'better-sqlite3';
-import {getGuildConfig} from '../database/config';
+import {getGuildConfig, getPugLeaderRoles} from '../database/config';
 import {completeMatch, getCurrentMatch} from '../database/matches';
 import {hasMatchPermission} from '../utils/permissions';
 
@@ -38,8 +38,9 @@ export async function execute(
 
     const member = interaction.member as GuildMember;
     const config = getGuildConfig(db, interaction.guildId);
+    const pugLeaderRoles = getPugLeaderRoles(db, interaction.guildId);
 
-    if (!hasMatchPermission(member, config)) {
+    if (!hasMatchPermission(member, config, pugLeaderRoles)) {
         await interaction.reply({
             content: "You don't have permission to manage matches.",
             flags: MessageFlags.Ephemeral,

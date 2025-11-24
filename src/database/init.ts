@@ -166,6 +166,13 @@ export function initDatabase(): Database.Database {
 
         CREATE INDEX IF NOT EXISTS idx_scheduled_pugs_guild_time_state
             ON scheduled_pugs (guild_id, scheduled_time, state);
+
+        CREATE TABLE IF NOT EXISTS guild_pug_leader_roles
+        (
+            guild_id TEXT NOT NULL,
+            role_id  TEXT NOT NULL,
+            PRIMARY KEY (guild_id, role_id)
+        );
     `);
 
     try {

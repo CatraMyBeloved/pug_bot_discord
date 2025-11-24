@@ -6,16 +6,21 @@ import {GuildConfig} from '../database/config';
  *
  * Permission is granted if:
  * 1. Member has Administrator permission, OR
- * 2. Member has the configured PUG Leader role
+ * 2. Member has any of the configured PUG Leader roles
  *
- * If no PUG Leader role is configured, only Administrators can manage matches.
+ * If no PUG Leader roles are configured, only Administrators can manage matches.
  */
 export function hasMatchPermission(
     member: GuildMember,
-    guildConfig: GuildConfig | undefined
+    guildConfig: GuildConfig | undefined,
+    pugLeaderRoles: string[] = []
 ): boolean {
     if (member.permissions.has(PermissionFlagsBits.Administrator)) {
         return true;
+    }
+
+    if (pugLeaderRoles.length > 0) {
+        return pugLeaderRoles.some(roleId => member.roles.cache.has(roleId));
     }
 
     if (guildConfig?.pug_leader_role_id) {

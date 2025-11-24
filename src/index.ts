@@ -13,6 +13,7 @@ import * as cancelpugCommand from './commands/cancelpug';
 import * as makepugCommand from './commands/makepug';
 import * as matchCommand from './commands/match';
 import * as helpCommand from './commands/help';
+import * as testCommand from './commands/test';
 
 dotenv.config();
 
@@ -73,6 +74,9 @@ client.on('interactionCreate', async (interaction) => {
     }
     if (interaction.commandName === 'help') {
         await helpCommand.execute(interaction, db);
+    }
+    if (interaction.commandName === 'test') {
+        await testCommand.execute(interaction, db);
     }
 });
 

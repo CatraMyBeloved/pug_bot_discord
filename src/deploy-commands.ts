@@ -11,6 +11,7 @@ import {data as cancelpugCommand} from './commands/cancelpug';
 import {data as makepugCommand} from './commands/makepug';
 import {data as matchCommand} from './commands/match';
 import {data as helpCommand} from './commands/help';
+import {data as testCommand} from './commands/test';
 
 dotenv.config();
 
@@ -26,23 +27,34 @@ const commands = [
     makepugCommand.toJSON(),
     matchCommand.toJSON(),
     helpCommand.toJSON(),
+    testCommand.toJSON(),
 ];
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
 
 (async () => {
     try {
-        console.log('Registering slash commands...');
+        const guildId = process.env.GUILD_ID;
 
+        // Clear guild-specific commands if GUILD_ID is set
+        if (guildId) {
+            console.log(`Clearing guild-specific commands for guild ${guildId}...`);
+            await rest.put(
+                Routes.applicationGuildCommands(process.env.CLIENT_ID!, guildId),
+                {body: []}
+            );
+            console.log('Guild-specific commands cleared successfully!');
+        }
+
+        // Deploy global commands
+        console.log('Registering slash commands globally...');
         await rest.put(
-            Routes.applicationGuildCommands(
-                process.env.CLIENT_ID!,
-                process.env.GUILD_ID!
-            ),
+            Routes.applicationCommands(process.env.CLIENT_ID!),
             {body: commands}
         );
 
-        console.log('Commands registered!');
+        console.log('Global commands registered successfully!');
+        console.log('Note: Global commands may take up to 1 hour to appear in all guilds.');
     } catch (error) {
         console.error(error);
     }

@@ -1,5 +1,6 @@
 import {
     ChatInputCommandInteraction,
+    GuildMember,
     GuildScheduledEventEntityType,
     GuildScheduledEventPrivacyLevel,
     MessageFlags,
@@ -7,13 +8,13 @@ import {
     SlashCommandBuilder,
 } from 'discord.js';
 import Database from 'better-sqlite3';
-import {getGuildConfig} from '../database/config';
+import {getGuildConfig, getPugLeaderRoles} from '../database/config';
 import {createScheduledPug} from '../database/scheduled_pugs';
+import {hasMatchPermission} from '../utils/permissions';
 
 export const data = new SlashCommandBuilder()
     .setName('schedulepug')
     .setDescription('Schedule a PUG match (times in UTC)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(option =>
         option
             .setName('date')
@@ -59,7 +60,17 @@ export async function execute(
         return;
     }
 
+    const member = interaction.member as GuildMember;
     const config = getGuildConfig(db, interaction.guildId);
+    const pugLeaderRoles = getPugLeaderRoles(db, interaction.guildId);
+
+    if (!hasMatchPermission(member, config, pugLeaderRoles)) {
+        await interaction.reply({
+            content: "You don't have permission to schedule matches. Ask an admin to set up PUG Leader roles with `/setup pugleader add`.",
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
 
     if (!config || !config.announcement_channel_id) {
         await interaction.reply({

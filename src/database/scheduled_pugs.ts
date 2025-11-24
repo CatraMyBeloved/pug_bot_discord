@@ -57,7 +57,7 @@ export function getPugsNeedingReminders(
         SELECT *
         FROM scheduled_pugs
         WHERE state = 'pending'
-          AND scheduled_time > datetime('now')
+          AND datetime(scheduled_time) > datetime('now')
     `);
     return stmt.all() as ScheduledPug[];
 }
