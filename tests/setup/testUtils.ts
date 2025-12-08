@@ -1,0 +1,124 @@
+import Database from 'better-sqlite3';
+
+/**
+ * Creates an in-memory SQLite database for testing
+ * Each test gets a fresh database instance
+ */
+export function createTestDatabase(): Database.Database {
+    const db = new Database(':memory:');
+
+    // Enable foreign keys (matches production)
+    db.pragma('foreign_keys = ON');
+
+    // Execute the same schema setup as production
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS players
+        (
+            discord_user_id TEXT PRIMARY KEY,
+            battlenet_id    TEXT     NOT NULL,
+            rank            TEXT     NOT NULL,
+            wins            INTEGER  NOT NULL DEFAULT 0,
+            losses          INTEGER  NOT NULL DEFAULT 0,
+            registered_at   DATETIME          DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS player_roles
+        (
+            discord_user_id TEXT NOT NULL,
+            role            TEXT NOT NULL,
+            PRIMARY KEY (discord_user_id, role),
+            FOREIGN KEY (discord_user_id) REFERENCES players (discord_user_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS matches
+        (
+            match_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            state            TEXT     NOT NULL DEFAULT 'prepared',
+            created_at       DATETIME          DEFAULT CURRENT_TIMESTAMP,
+            completed_at     DATETIME,
+            winning_team     INTEGER,
+            voice_channel_id TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS match_participants
+        (
+            match_id        INTEGER NOT NULL,
+            discord_user_id TEXT    NOT NULL,
+            team            INTEGER NOT NULL,
+            assigned_role   TEXT    NOT NULL,
+            PRIMARY KEY (match_id, discord_user_id),
+            FOREIGN KEY (match_id) REFERENCES matches (match_id),
+            FOREIGN KEY (discord_user_id) REFERENCES players (discord_user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS guild_config
+        (
+            guild_id                 TEXT PRIMARY KEY,
+            main_vc_id               TEXT,
+            team1_vc_id              TEXT,
+            team2_vc_id              TEXT,
+            pug_role_id              TEXT,
+            pug_leader_role_id       TEXT,
+            announcement_channel_id  TEXT,
+            auto_move                INTEGER  NOT NULL DEFAULT 1,
+            updated_at               DATETIME          DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS guild_pug_leader_roles
+        (
+            guild_id TEXT NOT NULL,
+            role_id  TEXT NOT NULL,
+            PRIMARY KEY (guild_id, role_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS scheduled_pugs
+        (
+            pug_id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id          TEXT     NOT NULL,
+            scheduled_time    DATETIME NOT NULL,
+            created_by        TEXT     NOT NULL,
+            discord_event_id  TEXT,
+            state             TEXT              DEFAULT 'pending',
+            reminder_24h_sent INTEGER  NOT NULL DEFAULT 0,
+            reminder_1h_sent  INTEGER  NOT NULL DEFAULT 0,
+            created_at        DATETIME          DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_player_roles_role ON player_roles (role);
+        CREATE INDEX IF NOT EXISTS idx_matches_state ON matches (state);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_pugs_guild_time_state
+            ON scheduled_pugs (guild_id, scheduled_time, state);
+    `);
+
+    return db;
+}
+
+/**
+ * Closes and cleans up database connection
+ */
+export function closeTestDatabase(db: Database.Database): void {
+    db.close();
+}
+
+/**
+ * Clears all data from tables (preserves schema)
+ */
+export function clearAllTables(db: Database.Database): void {
+    db.exec(`
+        DELETE FROM match_participants;
+        DELETE FROM matches;
+        DELETE FROM player_roles;
+        DELETE FROM players;
+        DELETE FROM guild_pug_leader_roles;
+        DELETE FROM guild_config;
+        DELETE FROM scheduled_pugs;
+    `);
+}
+
+/**
+ * Get row count for a table (useful for assertions)
+ */
+export function getRowCount(db: Database.Database, tableName: string): number {
+    const result = db.prepare(`SELECT COUNT(*) as count FROM ${tableName}`).get() as { count: number };
+    return result.count;
+}
