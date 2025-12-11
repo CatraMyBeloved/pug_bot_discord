@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import {initDatabase} from './database/init';
 import {initializeScheduler} from './services/scheduler';
 import * as registerCommand from './commands/register';
-import * as setupCommand from './commands/setup';
+import * as setupCommand from './commands/setup-wizard';
 import * as profileCommand from './commands/profile';
 import * as updateCommand from './commands/update';
 import * as rosterCommand from './commands/roster';
@@ -14,6 +14,8 @@ import * as makepugCommand from './commands/makepug';
 import * as matchCommand from './commands/match';
 import * as helpCommand from './commands/help';
 import * as testCommand from './commands/test';
+import {handleCancelpugButton} from './handlers/cancelpugHandlers';
+import {handleWizardButton, handleWizardModal} from './handlers/wizardInteractionHandler';
 
 dotenv.config();
 
@@ -37,6 +39,46 @@ client.on('interactionCreate', async (interaction) => {
         if (interaction.commandName === 'cancelpug') {
             await cancelpugCommand.autocomplete(interaction, db);
         }
+        return;
+    }
+
+    if (interaction.isButton()) {
+        // Handle button interactions
+        const customId = interaction.customId;
+
+        // Route to appropriate handler based on button ID prefix
+        if (customId.startsWith('confirm_cancel_') || customId.startsWith('decline_cancel_')) {
+            await handleCancelpugButton(interaction, db);
+            return;
+        }
+
+        if (customId.startsWith('wizard:')) {
+            await handleWizardButton(interaction, db);
+            return;
+        }
+
+        // Unknown button
+        await interaction.reply({
+            content: 'Unknown button interaction.',
+            flags: 64
+        });
+        return;
+    }
+
+    if (interaction.isModalSubmit()) {
+        // Handle modal submissions
+        const customId = interaction.customId;
+
+        if (customId.startsWith('wizard_modal:')) {
+            await handleWizardModal(interaction, db);
+            return;
+        }
+
+        // Unknown modal
+        await interaction.reply({
+            content: 'Unknown modal submission.',
+            flags: 64
+        });
         return;
     }
 

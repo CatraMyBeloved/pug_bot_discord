@@ -1,5 +1,8 @@
 import {
+    ActionRowBuilder,
     AutocompleteInteraction,
+    ButtonBuilder,
+    ButtonStyle,
     ChatInputCommandInteraction,
     GuildMember,
     MessageFlags,
@@ -75,38 +78,25 @@ export async function execute(
             return;
         }
 
-        if (pug.discord_event_id) {
-            try {
-                const event = await interaction.guild.scheduledEvents.fetch(pug.discord_event_id);
-                event.delete();
-            } catch (error) {
-                console.warn(`Could not delete Discord event ${pug.discord_event_id}:`, error);
-            }
-        }
+        // Show confirmation dialog with buttons
+        const timestamp = Math.floor(new Date(pug.scheduled_time).getTime() / 1000);
 
-        cancelScheduledPug(db, pugId);
+        const confirmButton = new ButtonBuilder()
+            .setCustomId(`confirm_cancel_${pugId}`)
+            .setLabel('Confirm Cancellation')
+            .setStyle(ButtonStyle.Danger);
 
-        const config = getGuildConfig(db, interaction.guildId);
-        if (config && config.announcement_channel_id) {
-            try {
-                const channel = await interaction.client.channels.fetch(config.announcement_channel_id);
-                if (channel && channel.isTextBased()) {
-                    const timestamp = Math.floor(new Date(pug.scheduled_time).getTime() / 1000);
-                    const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '**PUG Update:**';
+        const declineButton = new ButtonBuilder()
+            .setCustomId(`decline_cancel_${pugId}`)
+            .setLabel('Keep PUG')
+            .setStyle(ButtonStyle.Secondary);
 
-                    if ("send" in channel) {
-                        await channel.send(
-                            `${roleMention} The scheduled PUG for <t:${timestamp}:F> has been cancelled.`
-                        );
-                    }
-                }
-            } catch (error) {
-                console.warn('Could not send cancellation message:', error);
-            }
-        }
+        const row = new ActionRowBuilder<ButtonBuilder>()
+            .addComponents(confirmButton, declineButton);
 
         await interaction.reply({
-            content: `Scheduled PUG ${pugId} has been cancelled.`,
+            content: `**[CONFIRMATION REQUIRED]**\n\nYou are about to cancel the scheduled PUG:\n- **PUG ID:** ${pugId}\n- **Scheduled Time:** <t:${timestamp}:F>\n\nThis action will:\n- Delete the Discord event\n- Mark the PUG as cancelled in the database\n- Send a cancellation announcement\n\n**Are you sure you want to cancel this PUG?**`,
+            components: [row],
             flags: MessageFlags.Ephemeral,
         });
     } catch (error) {

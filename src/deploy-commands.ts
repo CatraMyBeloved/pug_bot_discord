@@ -1,7 +1,7 @@
 import {REST, Routes} from 'discord.js';
 import dotenv from 'dotenv';
 import {data as registerCommand} from './commands/register';
-import {data as setupCommand} from './commands/setup';
+import {data as setupCommand} from './commands/setup-wizard';
 import {data as profileCommand} from './commands/profile';
 import {data as updateCommand} from './commands/update';
 import {data as rosterCommand} from './commands/roster';

@@ -173,6 +173,16 @@ export function initDatabase(): Database.Database {
             role_id  TEXT NOT NULL,
             PRIMARY KEY (guild_id, role_id)
         );
+
+        CREATE TABLE IF NOT EXISTS button_interactions
+        (
+            interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id       TEXT     NOT NULL,
+            user_id        TEXT     NOT NULL,
+            button_id      TEXT     NOT NULL,
+            action_type    TEXT     NOT NULL,
+            created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
     `);
 
     try {
