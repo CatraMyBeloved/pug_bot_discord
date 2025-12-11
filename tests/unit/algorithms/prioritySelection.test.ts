@@ -288,8 +288,14 @@ describe('selectPlayersByPriority', () => {
             const result = selectPlayersByPriority(players, getPriority);
 
             expect(result).toHaveLength(10);
-            const flexPlayers = result.filter(p => ['user1', 'user2'].includes(p.userId));
-            expect(flexPlayers.every(p => p.assignedRole === 'tank')).toBe(true);
+            expect(result.filter(p => p.assignedRole === 'tank')).toHaveLength(2);
+            expect(result.filter(p => p.assignedRole === 'dps')).toHaveLength(4);
+            expect(result.filter(p => p.assignedRole === 'support')).toHaveLength(4);
+
+            // Verify no player is selected twice
+            const userIds = result.map(p => p.userId);
+            const uniqueUserIds = new Set(userIds);
+            expect(uniqueUserIds.size).toBe(userIds.length);
         });
 
         it('handles different rank players', () => {
