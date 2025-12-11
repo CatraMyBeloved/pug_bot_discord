@@ -156,6 +156,29 @@ describe('selectPlayersByPriority', () => {
                 expect(err.found.tank).toBe(1);
             }
         });
+
+        it('throws InsufficientRoleCompositionError when flex players cause shortage', () => {
+            // Edge case: flex players get selected for one role, causing shortage in another
+            // 2 flex players (tank/support), 0 tank-only, 6 dps-only, 2 support-only (10 total)
+            // Initial validation: tank pool=2, dps pool=8, support pool=4 (all pass)
+            // After selecting 2 tanks (both flex), only 2 support-only remain (need 4)
+            const players = [
+                createMockPlayer({availableRoles: ['tank', 'support']}),
+                createMockPlayer({availableRoles: ['tank', 'support']}),
+                ...createMockRoster(0, 6, 2), // 0 tanks, 6 dps, 2 support
+            ];
+            const getPriority = jest.fn(() => 1);
+
+            try {
+                selectPlayersByPriority(players, getPriority);
+                fail('Expected InsufficientRoleCompositionError to be thrown');
+            } catch (error) {
+                expect(error).toBeInstanceOf(InsufficientRoleCompositionError);
+                const err = error as InsufficientRoleCompositionError;
+                expect(err.required.support).toBe(4);
+                expect(err.found.support).toBe(2);
+            }
+        });
     });
 
     describe('Priority System', () => {
