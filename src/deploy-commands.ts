@@ -2,6 +2,7 @@ import {REST, Routes} from 'discord.js';
 import dotenv from 'dotenv';
 import {data as registerCommand} from './commands/register';
 import {data as setupCommand} from './commands/setup-wizard';
+import {data as setupResetCommand} from './commands/setup-reset';
 import {data as profileCommand} from './commands/profile';
 import {data as updateCommand} from './commands/update';
 import {data as rosterCommand} from './commands/roster';
@@ -18,6 +19,7 @@ dotenv.config();
 const commands = [
     registerCommand.toJSON(),
     setupCommand.toJSON(),
+    setupResetCommand.toJSON(),
     profileCommand.toJSON(),
     updateCommand.toJSON(),
     rosterCommand.toJSON(),

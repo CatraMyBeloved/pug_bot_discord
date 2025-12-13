@@ -2,10 +2,10 @@ import {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    ChannelSelectMenuBuilder,
+    ChannelType,
     EmbedBuilder,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle
+    RoleSelectMenuBuilder
 } from 'discord.js';
 import {WizardSession} from './WizardState';
 
@@ -96,27 +96,41 @@ export function buildVoiceChannelsEmbed(session: WizardSession): EmbedBuilder {
             { name: 'Team 2 VC', value: team2Vc }
         )
         .setColor(0x5865F2)
-        .setFooter({ text: 'Right-click a voice channel → Copy Channel ID (Developer Mode must be enabled)' });
+        .setFooter({ text: 'Select channels from the dropdowns below' });
 }
 
-export function buildVoiceChannelsButtons(): ActionRowBuilder<ButtonBuilder>[] {
-    const row1 = new ActionRowBuilder<ButtonBuilder>()
+export function buildVoiceChannelsComponents(): ActionRowBuilder<ChannelSelectMenuBuilder | ButtonBuilder>[] {
+    const mainVcRow = new ActionRowBuilder<ChannelSelectMenuBuilder>()
         .addComponents(
-            new ButtonBuilder()
-                .setCustomId('wizard:modal:main_vc')
-                .setLabel('Set Main VC')
-                .setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('wizard:modal:team1_vc')
-                .setLabel('Set Team 1 VC')
-                .setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('wizard:modal:team2_vc')
-                .setLabel('Set Team 2 VC')
-                .setStyle(ButtonStyle.Secondary)
+            new ChannelSelectMenuBuilder()
+                .setCustomId('wizard:select:main_vc')
+                .setPlaceholder('Select Main Voice Channel (Lobby)')
+                .addChannelTypes(ChannelType.GuildVoice)
+                .setMinValues(1)
+                .setMaxValues(1)
         );
 
-    const row2 = new ActionRowBuilder<ButtonBuilder>()
+    const team1VcRow = new ActionRowBuilder<ChannelSelectMenuBuilder>()
+        .addComponents(
+            new ChannelSelectMenuBuilder()
+                .setCustomId('wizard:select:team1_vc')
+                .setPlaceholder('Select Team 1 Voice Channel')
+                .addChannelTypes(ChannelType.GuildVoice)
+                .setMinValues(1)
+                .setMaxValues(1)
+        );
+
+    const team2VcRow = new ActionRowBuilder<ChannelSelectMenuBuilder>()
+        .addComponents(
+            new ChannelSelectMenuBuilder()
+                .setCustomId('wizard:select:team2_vc')
+                .setPlaceholder('Select Team 2 Voice Channel')
+                .addChannelTypes(ChannelType.GuildVoice)
+                .setMinValues(1)
+                .setMaxValues(1)
+        );
+
+    const backRow = new ActionRowBuilder<ButtonBuilder>()
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('wizard:back:menu')
@@ -124,7 +138,7 @@ export function buildVoiceChannelsButtons(): ActionRowBuilder<ButtonBuilder>[] {
                 .setStyle(ButtonStyle.Primary)
         );
 
-    return [row1, row2];
+    return [mainVcRow, team1VcRow, team2VcRow, backRow];
 }
 
 export function buildRolesEmbed(session: WizardSession): EmbedBuilder {
@@ -140,26 +154,32 @@ export function buildRolesEmbed(session: WizardSession): EmbedBuilder {
         .setDescription('Configure the roles used for PUG management.')
         .addFields(
             { name: 'PUG Role', value: pugRole },
-            { name: 'PUG Leader Roles', value: leaderRoles }
+            { name: 'PUG Leader Roles (can select multiple)', value: leaderRoles }
         )
         .setColor(0x5865F2)
-        .setFooter({ text: 'Right-click a role → Copy Role ID (Developer Mode must be enabled)' });
+        .setFooter({ text: 'Select roles from the dropdowns below' });
 }
 
-export function buildRolesButtons(): ActionRowBuilder<ButtonBuilder>[] {
-    const row1 = new ActionRowBuilder<ButtonBuilder>()
+export function buildRolesComponents(): ActionRowBuilder<RoleSelectMenuBuilder | ButtonBuilder>[] {
+    const pugRoleRow = new ActionRowBuilder<RoleSelectMenuBuilder>()
         .addComponents(
-            new ButtonBuilder()
-                .setCustomId('wizard:modal:pug_role')
-                .setLabel('Set PUG Role')
-                .setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('wizard:modal:add_leader_role')
-                .setLabel('Add PUG Leader Role')
-                .setStyle(ButtonStyle.Secondary)
+            new RoleSelectMenuBuilder()
+                .setCustomId('wizard:select:pug_role')
+                .setPlaceholder('Select PUG Role (for @mentions)')
+                .setMinValues(1)
+                .setMaxValues(1)
         );
 
-    const row2 = new ActionRowBuilder<ButtonBuilder>()
+    const leaderRolesRow = new ActionRowBuilder<RoleSelectMenuBuilder>()
+        .addComponents(
+            new RoleSelectMenuBuilder()
+                .setCustomId('wizard:select:pug_leader_roles')
+                .setPlaceholder('Select PUG Leader Roles (can select multiple)')
+                .setMinValues(1)
+                .setMaxValues(25)
+        );
+
+    const backRow = new ActionRowBuilder<ButtonBuilder>()
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('wizard:back:menu')
@@ -167,7 +187,7 @@ export function buildRolesButtons(): ActionRowBuilder<ButtonBuilder>[] {
                 .setStyle(ButtonStyle.Primary)
         );
 
-    return [row1, row2];
+    return [pugRoleRow, leaderRolesRow, backRow];
 }
 
 export function buildAnnouncementsEmbed(session: WizardSession): EmbedBuilder {
@@ -182,19 +202,21 @@ export function buildAnnouncementsEmbed(session: WizardSession): EmbedBuilder {
         .setDescription('Configure the channel where PUG announcements and reminders will be sent.')
         .addFields({ name: 'Announcement Channel', value: channel })
         .setColor(0x5865F2)
-        .setFooter({ text: 'Right-click a text channel → Copy Channel ID' });
+        .setFooter({ text: 'Select a text channel from the dropdown below' });
 }
 
-export function buildAnnouncementsButtons(): ActionRowBuilder<ButtonBuilder>[] {
-    const row1 = new ActionRowBuilder<ButtonBuilder>()
+export function buildAnnouncementsComponents(): ActionRowBuilder<ChannelSelectMenuBuilder | ButtonBuilder>[] {
+    const channelRow = new ActionRowBuilder<ChannelSelectMenuBuilder>()
         .addComponents(
-            new ButtonBuilder()
-                .setCustomId('wizard:modal:announcement_channel')
-                .setLabel('Set Announcement Channel')
-                .setStyle(ButtonStyle.Secondary)
+            new ChannelSelectMenuBuilder()
+                .setCustomId('wizard:select:announcement_channel')
+                .setPlaceholder('Select Announcement Channel')
+                .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                .setMinValues(1)
+                .setMaxValues(1)
         );
 
-    const row2 = new ActionRowBuilder<ButtonBuilder>()
+    const backRow = new ActionRowBuilder<ButtonBuilder>()
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('wizard:back:menu')
@@ -202,7 +224,7 @@ export function buildAnnouncementsButtons(): ActionRowBuilder<ButtonBuilder>[] {
                 .setStyle(ButtonStyle.Primary)
         );
 
-    return [row1, row2];
+    return [channelRow, backRow];
 }
 
 export function buildSettingsEmbed(session: WizardSession): EmbedBuilder {
@@ -277,67 +299,3 @@ export function buildReviewButtons(): ActionRowBuilder<ButtonBuilder>[] {
     return [row1];
 }
 
-// Modal builders
-export function buildChannelModal(type: 'main_vc' | 'team1_vc' | 'team2_vc' | 'announcement_channel'): ModalBuilder {
-    const titles = {
-        main_vc: 'Set Main Voice Channel',
-        team1_vc: 'Set Team 1 Voice Channel',
-        team2_vc: 'Set Team 2 Voice Channel',
-        announcement_channel: 'Set Announcement Channel'
-    };
-
-    const labels = {
-        main_vc: 'Main VC Channel ID',
-        team1_vc: 'Team 1 VC Channel ID',
-        team2_vc: 'Team 2 VC Channel ID',
-        announcement_channel: 'Announcement Channel ID'
-    };
-
-    const modal = new ModalBuilder()
-        .setCustomId(`wizard_modal:${type}`)
-        .setTitle(titles[type]);
-
-    const input = new TextInputBuilder()
-        .setCustomId('channel_id')
-        .setLabel(labels[type])
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('123456789012345678')
-        .setRequired(true)
-        .setMinLength(17)
-        .setMaxLength(20);
-
-    const row = new ActionRowBuilder<TextInputBuilder>().addComponents(input);
-    modal.addComponents(row);
-
-    return modal;
-}
-
-export function buildRoleModal(type: 'pug_role' | 'add_leader_role'): ModalBuilder {
-    const titles = {
-        pug_role: 'Set PUG Role',
-        add_leader_role: 'Add PUG Leader Role'
-    };
-
-    const labels = {
-        pug_role: 'PUG Role ID',
-        add_leader_role: 'PUG Leader Role ID'
-    };
-
-    const modal = new ModalBuilder()
-        .setCustomId(`wizard_modal:${type}`)
-        .setTitle(titles[type]);
-
-    const input = new TextInputBuilder()
-        .setCustomId('role_id')
-        .setLabel(labels[type])
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('123456789012345678')
-        .setRequired(true)
-        .setMinLength(17)
-        .setMaxLength(20);
-
-    const row = new ActionRowBuilder<TextInputBuilder>().addComponents(input);
-    modal.addComponents(row);
-
-    return modal;
-}

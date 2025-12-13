@@ -4,6 +4,7 @@ import {initDatabase} from './database/init';
 import {initializeScheduler} from './services/scheduler';
 import * as registerCommand from './commands/register';
 import * as setupCommand from './commands/setup-wizard';
+import * as setupResetCommand from './commands/setup-reset';
 import * as profileCommand from './commands/profile';
 import * as updateCommand from './commands/update';
 import * as rosterCommand from './commands/roster';
@@ -15,7 +16,8 @@ import * as matchCommand from './commands/match';
 import * as helpCommand from './commands/help';
 import * as testCommand from './commands/test';
 import {handleCancelpugButton} from './handlers/cancelpugHandlers';
-import {handleWizardButton, handleWizardModal} from './handlers/wizardInteractionHandler';
+import {handleWizardButton, handleWizardSelectMenu} from './handlers/wizardInteractionHandler';
+import {handleSetupResetButton} from './handlers/setupResetHandlers';
 
 dotenv.config();
 
@@ -52,6 +54,11 @@ client.on('interactionCreate', async (interaction) => {
             return;
         }
 
+        if (customId.startsWith('confirm_reset_') || customId.startsWith('cancel_reset_')) {
+            await handleSetupResetButton(interaction, db);
+            return;
+        }
+
         if (customId.startsWith('wizard:')) {
             await handleWizardButton(interaction, db);
             return;
@@ -65,18 +72,18 @@ client.on('interactionCreate', async (interaction) => {
         return;
     }
 
-    if (interaction.isModalSubmit()) {
-        // Handle modal submissions
+    if (interaction.isChannelSelectMenu() || interaction.isRoleSelectMenu()) {
+        // Handle select menu interactions
         const customId = interaction.customId;
 
-        if (customId.startsWith('wizard_modal:')) {
-            await handleWizardModal(interaction, db);
+        if (customId.startsWith('wizard:select:')) {
+            await handleWizardSelectMenu(interaction, db);
             return;
         }
 
-        // Unknown modal
+        // Unknown select menu
         await interaction.reply({
-            content: 'Unknown modal submission.',
+            content: 'Unknown select menu interaction.',
             flags: 64
         });
         return;
@@ -89,6 +96,9 @@ client.on('interactionCreate', async (interaction) => {
     }
     if (interaction.commandName === 'setup') {
         await setupCommand.execute(interaction, db);
+    }
+    if (interaction.commandName === 'setup-reset') {
+        await setupResetCommand.execute(interaction, db);
     }
     if (interaction.commandName === 'profile') {
         await profileCommand.execute(interaction, db);

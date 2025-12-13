@@ -92,12 +92,14 @@ export async function execute(
         const buttons = buildMainMenuButtons(isComplete);
 
         // Send wizard message
-        const reply = await interaction.reply({
+        await interaction.reply({
             embeds: [embed],
             components: buttons,
-            flags: MessageFlags.Ephemeral,
-            fetchReply: true
+            flags: MessageFlags.Ephemeral
         });
+
+        // Fetch the reply to get message ID
+        const reply = await interaction.fetchReply();
 
         // Store message ID for potential updates
         session.messageId = reply.id;

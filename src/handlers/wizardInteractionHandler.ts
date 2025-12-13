@@ -1,23 +1,21 @@
-import {ButtonInteraction, ChannelType, MessageFlags, ModalSubmitInteraction} from 'discord.js';
+import {ButtonInteraction, ChannelSelectMenuInteraction, MessageFlags, RoleSelectMenuInteraction} from 'discord.js';
 import Database from 'better-sqlite3';
 import {wizardState} from '../wizard/WizardState';
 import {
-    buildAnnouncementsButtons,
+    buildAnnouncementsComponents,
     buildAnnouncementsEmbed,
-    buildChannelModal,
     buildMainMenuButtons,
     buildMainMenuEmbed,
     buildReviewButtons,
     buildReviewEmbed,
-    buildRoleModal,
-    buildRolesButtons,
+    buildRolesComponents,
     buildRolesEmbed,
     buildSettingsButtons,
     buildSettingsEmbed,
-    buildVoiceChannelsButtons,
+    buildVoiceChannelsComponents,
     buildVoiceChannelsEmbed
 } from '../wizard/wizardUI';
-import {validateChannelId, validateRoleId, validateVoiceChannelUniqueness} from '../wizard/wizardValidation';
+import {validateVoiceChannelUniqueness} from '../wizard/wizardValidation';
 import {
     addPugLeaderRole,
     getGuildConfig,
@@ -52,14 +50,12 @@ export async function handleWizardButton(
 
     const customId = interaction.customId;
     const parts = customId.split(':');
-    const action = parts[1]; // navigate, modal, toggle, back, review, confirm, cancel
+    const action = parts[1]; // navigate, toggle, back, review, confirm, cancel
     const target = parts[2]; // category name or action target
 
     try {
         if (action === 'navigate') {
             await handleNavigate(interaction, session, target);
-        } else if (action === 'modal') {
-            await handleModalOpen(interaction, session, target);
         } else if (action === 'toggle') {
             await handleToggle(interaction, session, target, db);
         } else if (action === 'back') {
@@ -92,24 +88,24 @@ async function handleNavigate(
 ) {
     session.currentCategory = category;
 
-    let embed, buttons;
+    let embed, components;
 
     switch (category) {
         case 'voice_channels':
             embed = buildVoiceChannelsEmbed(session);
-            buttons = buildVoiceChannelsButtons();
+            components = buildVoiceChannelsComponents();
             break;
         case 'roles':
             embed = buildRolesEmbed(session);
-            buttons = buildRolesButtons();
+            components = buildRolesComponents();
             break;
         case 'announcements':
             embed = buildAnnouncementsEmbed(session);
-            buttons = buildAnnouncementsButtons();
+            components = buildAnnouncementsComponents();
             break;
         case 'settings':
             embed = buildSettingsEmbed(session);
-            buttons = buildSettingsButtons(session.settings.autoMove);
+            components = buildSettingsButtons(session.settings.autoMove);
             break;
         default:
             await interaction.reply({
@@ -121,31 +117,10 @@ async function handleNavigate(
 
     await interaction.update({
         embeds: [embed],
-        components: buttons
+        components: components
     });
 }
 
-async function handleModalOpen(
-    interaction: ButtonInteraction,
-    session: any,
-    modalType: string
-) {
-    let modal;
-
-    if (modalType === 'main_vc' || modalType === 'team1_vc' || modalType === 'team2_vc' || modalType === 'announcement_channel') {
-        modal = buildChannelModal(modalType as any);
-    } else if (modalType === 'pug_role' || modalType === 'add_leader_role') {
-        modal = buildRoleModal(modalType as any);
-    } else {
-        await interaction.reply({
-            content: 'Unknown modal type.',
-            flags: MessageFlags.Ephemeral
-        });
-        return;
-    }
-
-    await interaction.showModal(modal);
-}
 
 async function handleToggle(
     interaction: ButtonInteraction,
@@ -277,9 +252,9 @@ async function handleCancel(
     });
 }
 
-// Modal submission handler
-export async function handleWizardModal(
-    interaction: ModalSubmitInteraction,
+// Select menu handler
+export async function handleWizardSelectMenu(
+    interaction: ChannelSelectMenuInteraction | RoleSelectMenuInteraction,
     db: Database.Database
 ) {
     if (!interaction.guildId || !interaction.guild) {
@@ -300,175 +275,133 @@ export async function handleWizardModal(
     }
 
     const customId = interaction.customId;
-    const modalType = customId.split(':')[1];
+    const selectType = customId.split(':')[2]; // wizard:select:TYPE
 
     try {
-        if (modalType === 'main_vc') {
-            await handleChannelModalSubmit(interaction, session, 'mainVcId', ChannelType.GuildVoice);
-        } else if (modalType === 'team1_vc') {
-            await handleChannelModalSubmit(interaction, session, 'team1VcId', ChannelType.GuildVoice);
-        } else if (modalType === 'team2_vc') {
-            await handleChannelModalSubmit(interaction, session, 'team2VcId', ChannelType.GuildVoice);
-        } else if (modalType === 'announcement_channel') {
-            await handleChannelModalSubmit(interaction, session, 'announcementChannelId', ChannelType.GuildText);
-        } else if (modalType === 'pug_role') {
-            await handleRoleModalSubmit(interaction, session, 'pugRoleId');
-        } else if (modalType === 'add_leader_role') {
-            await handleLeaderRoleModalSubmit(interaction, session);
+        if (selectType === 'main_vc') {
+            await handleChannelSelect(interaction as ChannelSelectMenuInteraction, session, 'mainVcId', 'Main VC');
+        } else if (selectType === 'team1_vc') {
+            await handleChannelSelect(interaction as ChannelSelectMenuInteraction, session, 'team1VcId', 'Team 1 VC');
+        } else if (selectType === 'team2_vc') {
+            await handleChannelSelect(interaction as ChannelSelectMenuInteraction, session, 'team2VcId', 'Team 2 VC');
+        } else if (selectType === 'announcement_channel') {
+            await handleChannelSelect(interaction as ChannelSelectMenuInteraction, session, 'announcementChannelId', 'Announcement Channel');
+        } else if (selectType === 'pug_role') {
+            await handleRoleSelect(interaction as RoleSelectMenuInteraction, session, 'pugRoleId', 'PUG Role');
+        } else if (selectType === 'pug_leader_roles') {
+            await handleLeaderRolesSelect(interaction as RoleSelectMenuInteraction, session);
         } else {
             await interaction.reply({
-                content: 'Unknown modal type.',
+                content: 'Unknown select menu type.',
                 flags: MessageFlags.Ephemeral
             });
         }
     } catch (error) {
-        console.error('Wizard modal error:', error);
+        console.error('Wizard select menu error:', error);
         await interaction.reply({
-            content: 'An error occurred processing your input. Please try again.',
+            content: 'An error occurred processing your selection. Please try again.',
             flags: MessageFlags.Ephemeral
         }).catch(() => {});
     }
 }
 
-async function handleChannelModalSubmit(
-    interaction: ModalSubmitInteraction,
+async function handleChannelSelect(
+    interaction: ChannelSelectMenuInteraction,
     session: any,
     settingKey: string,
-    expectedType: ChannelType
+    displayName: string
 ) {
-    const channelId = interaction.fields.getTextInputValue('channel_id').trim();
-
-    const validation = await validateChannelId(interaction.guild!, channelId, expectedType);
-
-    if (!validation.valid) {
-        await interaction.reply({
-            content: `**[ERROR]** ${validation.error}`,
-            flags: MessageFlags.Ephemeral
-        });
-        return;
-    }
+    const channelId = interaction.values[0];
 
     // Update session
     wizardState.updateSettings(session.userId, session.guildId, {
         [settingKey]: channelId
     });
 
-    await interaction.reply({
-        content: `**[SUCCESS]** Channel set successfully: <#${channelId}>`,
+    // Refresh the view
+    await refreshView(interaction, session);
+
+    await interaction.followUp({
+        content: `**[SUCCESS]** ${displayName} set to <#${channelId}>`,
         flags: MessageFlags.Ephemeral
     });
-
-    // Refresh the current view
-    await refreshCurrentView(interaction, session);
 }
 
-async function handleRoleModalSubmit(
-    interaction: ModalSubmitInteraction,
+async function handleRoleSelect(
+    interaction: RoleSelectMenuInteraction,
     session: any,
-    settingKey: string
+    settingKey: string,
+    displayName: string
 ) {
-    const roleId = interaction.fields.getTextInputValue('role_id').trim();
-
-    const validation = await validateRoleId(interaction.guild!, roleId);
-
-    if (!validation.valid) {
-        await interaction.reply({
-            content: `**[ERROR]** ${validation.error}`,
-            flags: MessageFlags.Ephemeral
-        });
-        return;
-    }
+    const roleId = interaction.values[0];
 
     // Update session
     wizardState.updateSettings(session.userId, session.guildId, {
         [settingKey]: roleId
     });
 
-    await interaction.reply({
-        content: `**[SUCCESS]** Role set successfully: <@&${roleId}>`,
+    // Refresh the view
+    await refreshView(interaction, session);
+
+    await interaction.followUp({
+        content: `**[SUCCESS]** ${displayName} set to <@&${roleId}>`,
         flags: MessageFlags.Ephemeral
     });
-
-    // Refresh the current view
-    await refreshCurrentView(interaction, session);
 }
 
-async function handleLeaderRoleModalSubmit(
-    interaction: ModalSubmitInteraction,
+async function handleLeaderRolesSelect(
+    interaction: RoleSelectMenuInteraction,
     session: any
 ) {
-    const roleId = interaction.fields.getTextInputValue('role_id').trim();
+    const roleIds = interaction.values;
 
-    const validation = await validateRoleId(interaction.guild!, roleId);
-
-    if (!validation.valid) {
-        await interaction.reply({
-            content: `**[ERROR]** ${validation.error}`,
-            flags: MessageFlags.Ephemeral
-        });
-        return;
-    }
-
-    // Check if role already added
-    if (session.settings.pugLeaderRoleIds.includes(roleId)) {
-        await interaction.reply({
-            content: '**[WARNING]** This role is already added as a PUG Leader role.',
-            flags: MessageFlags.Ephemeral
-        });
-        return;
-    }
-
-    // Add to array
-    session.settings.pugLeaderRoleIds.push(roleId);
+    // Update session with all selected roles
     wizardState.updateSettings(session.userId, session.guildId, {
-        pugLeaderRoleIds: session.settings.pugLeaderRoleIds
+        pugLeaderRoleIds: roleIds
     });
 
-    await interaction.reply({
-        content: `**[SUCCESS]** PUG Leader role added: <@&${roleId}>`,
+    // Refresh the view
+    await refreshView(interaction, session);
+
+    const roleList = roleIds.map(id => `<@&${id}>`).join(', ');
+    await interaction.followUp({
+        content: `**[SUCCESS]** PUG Leader Roles set to: ${roleList}`,
         flags: MessageFlags.Ephemeral
     });
-
-    // Refresh the current view
-    await refreshCurrentView(interaction, session);
 }
 
-async function refreshCurrentView(interaction: ModalSubmitInteraction, session: any) {
-    try {
-        const message = await interaction.message?.fetch();
-        if (!message) return;
+async function refreshView(
+    interaction: ChannelSelectMenuInteraction | RoleSelectMenuInteraction,
+    session: any
+) {
+    const category = session.currentCategory;
+    if (!category) return;
 
-        const category = session.currentCategory;
-        if (!category) return;
+    let embed, components;
 
-        let embed, buttons;
-
-        switch (category) {
-            case 'voice_channels':
-                embed = buildVoiceChannelsEmbed(session);
-                buttons = buildVoiceChannelsButtons();
-                break;
-            case 'roles':
-                embed = buildRolesEmbed(session);
-                buttons = buildRolesButtons();
-                break;
-            case 'announcements':
-                embed = buildAnnouncementsEmbed(session);
-                buttons = buildAnnouncementsButtons();
-                break;
-            case 'settings':
-                embed = buildSettingsEmbed(session);
-                buttons = buildSettingsButtons(session.settings.autoMove);
-                break;
-            default:
-                return;
-        }
-
-        await message.edit({
-            embeds: [embed],
-            components: buttons
-        });
-    } catch (error) {
-        console.error('Failed to refresh view:', error);
+    switch (category) {
+        case 'voice_channels':
+            embed = buildVoiceChannelsEmbed(session);
+            components = buildVoiceChannelsComponents();
+            break;
+        case 'roles':
+            embed = buildRolesEmbed(session);
+            components = buildRolesComponents();
+            break;
+        case 'announcements':
+            embed = buildAnnouncementsEmbed(session);
+            components = buildAnnouncementsComponents();
+            break;
+        case 'settings':
+            embed = buildSettingsEmbed(session);
+            components = buildSettingsButtons(session.settings.autoMove);
+            break;
+        default:
+            return;
     }
+
+    await interaction.update({
+        embeds: [embed],
+        components: components
+    });
 }
