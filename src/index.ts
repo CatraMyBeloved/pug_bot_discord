@@ -6,6 +6,7 @@ import * as registerCommand from './commands/register';
 import * as setupCommand from './commands/setup-wizard';
 import * as setupResetCommand from './commands/setup-reset';
 import * as profileCommand from './commands/profile';
+import * as leaderboardCommand from './commands/leaderboard';
 import * as updateCommand from './commands/update';
 import * as rosterCommand from './commands/roster';
 import * as schedulepugCommand from './commands/schedulepug';
@@ -102,6 +103,9 @@ client.on('interactionCreate', async (interaction) => {
     }
     if (interaction.commandName === 'profile') {
         await profileCommand.execute(interaction, db);
+    }
+    if (interaction.commandName === 'leaderboard') {
+        await leaderboardCommand.execute(interaction, db);
     }
     if (interaction.commandName === 'update') {
         await updateCommand.execute(interaction, db);

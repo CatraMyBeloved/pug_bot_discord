@@ -108,3 +108,144 @@ export function updatePlayer(
         }
     }
 }
+
+export interface RecentMatch {
+    matchId: number;
+    team: number;
+    assignedRole: string;
+    wonMatch: boolean;
+    completedAt: string;
+    isDraw: boolean;
+}
+
+export interface PlayerStats {
+    player: Player;
+    totalGames: number;
+    winRate: number;
+    roleStats: {
+        tank: number;
+        dps: number;
+        support: number;
+    };
+    recentMatches: RecentMatch[];
+}
+
+/**
+ * Get detailed player statistics including role breakdown and recent matches
+ */
+export function getPlayerStats(
+    db: Database.Database,
+    discordUserId: string,
+    recentMatchLimit: number = 10
+): PlayerStats | undefined {
+    const player = getPlayer(db, discordUserId);
+    if (!player) return undefined;
+
+    const totalGames = player.wins + player.losses;
+    const winRate = totalGames > 0 ? (player.wins / totalGames) * 100 : 0;
+
+    // Get role breakdown
+    const roleStatsQuery = db.prepare(`
+        SELECT assigned_role, COUNT(*) as count
+        FROM match_participants mp
+                 JOIN matches m ON mp.match_id = m.match_id
+        WHERE mp.discord_user_id = ?
+          AND m.state = 'complete'
+        GROUP BY assigned_role
+    `);
+    const roleRows = roleStatsQuery.all(discordUserId) as Array<{ assigned_role: string, count: number }>;
+
+    const roleStats = {
+        tank: roleRows.find(r => r.assigned_role === 'tank')?.count || 0,
+        dps: roleRows.find(r => r.assigned_role === 'dps')?.count || 0,
+        support: roleRows.find(r => r.assigned_role === 'support')?.count || 0
+    };
+
+    // Get recent matches
+    const recentMatchesQuery = db.prepare(`
+        SELECT m.match_id,
+               mp.team,
+               mp.assigned_role,
+               m.winning_team,
+               m.completed_at
+        FROM match_participants mp
+                 JOIN matches m ON mp.match_id = m.match_id
+        WHERE mp.discord_user_id = ?
+          AND m.state = 'complete'
+        ORDER BY m.completed_at DESC
+        LIMIT ?
+    `);
+
+    const recentRows = recentMatchesQuery.all(discordUserId, recentMatchLimit) as Array<{
+        match_id: number,
+        team: number,
+        assigned_role: string,
+        winning_team: number | null,
+        completed_at: string
+    }>;
+
+    const recentMatches: RecentMatch[] = recentRows.map(row => ({
+        matchId: row.match_id,
+        team: row.team,
+        assignedRole: row.assigned_role,
+        wonMatch: row.winning_team === row.team,
+        completedAt: row.completed_at,
+        isDraw: row.winning_team === null
+    }));
+
+    return {
+        player,
+        totalGames,
+        winRate,
+        roleStats,
+        recentMatches
+    };
+}
+
+export interface LeaderboardEntry {
+    discordUserId: string;
+    battlenetId: string;
+    rank: string;
+    wins: number;
+    losses: number;
+    totalGames: number;
+    winRate: number;
+    score: number;
+}
+
+/**
+ * Get leaderboard with activity-weighted scoring
+ * Score = (Win Rate × 100) × log(1 + Total Games)
+ */
+export function getLeaderboard(
+    db: Database.Database,
+    limit: number = 25,
+    minGames: number = 3
+): LeaderboardEntry[] {
+    const query = db.prepare(`
+        SELECT discord_user_id,
+               battlenet_id,
+               rank,
+               wins,
+               losses,
+               (wins + losses)                                                  as total_games,
+               CASE
+                   WHEN (wins + losses) > 0
+                       THEN CAST(wins AS REAL) / (wins + losses) * 100.0
+                   ELSE 0.0
+                   END                                                          as win_rate,
+               -- Activity-weighted score: win_rate * log(1 + games)
+               CASE
+                   WHEN (wins + losses) > 0
+                       THEN (CAST(wins AS REAL) / (wins + losses) * 100.0) *
+                            LOG(1.0 + (wins + losses))
+                   ELSE 0.0
+                   END                                                          as score
+        FROM players
+        WHERE (wins + losses) >= ?
+        ORDER BY score DESC, total_games DESC
+        LIMIT ?
+    `);
+
+    return query.all(minGames, limit) as LeaderboardEntry[];
+}

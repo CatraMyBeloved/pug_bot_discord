@@ -1,12 +1,15 @@
 import {afterEach, beforeEach, describe, expect, it} from '@jest/globals';
 import Database from 'better-sqlite3';
 import {
+    getLeaderboard,
     getPlayer,
     getPlayerRoles,
+    getPlayerStats,
     isPlayerRegistered,
     registerPlayer,
     updatePlayer,
 } from '../../../src/database/players';
+import {completeMatch, createMatch, startMatch} from '../../../src/database/matches';
 import {closeTestDatabase, createTestDatabase, getRowCount} from '../../setup/testUtils';
 import {resetSeedPlayerCounter} from '../../fixtures/scenarios';
 
@@ -304,6 +307,369 @@ describe('Player Database Operations', () => {
             expect(player2?.battlenet_id).toBe('Player2#5678');
             expect(player1?.roles).toEqual(['support']);
             expect(player2?.roles).toEqual(['dps']);
+        });
+    });
+
+    describe('getPlayerStats', () => {
+        beforeEach(() => {
+            registerPlayer(db, 'user1', 'Player1#1234', ['tank', 'dps'], 'gold');
+            registerPlayer(db, 'user2', 'Player2#5678', ['support'], 'silver');
+            registerPlayer(db, 'user3', 'Player3#9999', ['tank'], 'diamond');
+        });
+
+        it('returns undefined for non-existent player', () => {
+            const stats = getPlayerStats(db, 'nonexistent');
+
+            expect(stats).toBeUndefined();
+        });
+
+        it('returns stats for player with no matches', () => {
+            const stats = getPlayerStats(db, 'user1');
+
+            expect(stats).toBeDefined();
+            expect(stats?.totalGames).toBe(0);
+            expect(stats?.winRate).toBe(0);
+            expect(stats?.roleStats.tank).toBe(0);
+            expect(stats?.roleStats.dps).toBe(0);
+            expect(stats?.roleStats.support).toBe(0);
+            expect(stats?.recentMatches).toEqual([]);
+        });
+
+        it('calculates correct win rate', () => {
+            // Create and complete match with user1 winning
+            const match1 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 2, assignedRole: 'support'},
+            ]);
+            startMatch(db, match1);
+            completeMatch(db, match1, 1);
+
+            const stats = getPlayerStats(db, 'user1');
+
+            expect(stats?.totalGames).toBe(1);
+            expect(stats?.winRate).toBe(100);
+        });
+
+        it('calculates correct role breakdown', () => {
+            // Create matches with different roles
+            const match1 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 2, assignedRole: 'support'},
+            ]);
+            completeMatch(db, match1, 1);
+
+            const match2 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 2, assignedRole: 'support'},
+            ]);
+            completeMatch(db, match2, 1);
+
+            const match3 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'dps'},
+                {userId: 'user2', team: 2, assignedRole: 'support'},
+            ]);
+            completeMatch(db, match3, 2);
+
+            const stats = getPlayerStats(db, 'user1');
+
+            expect(stats?.roleStats.tank).toBe(2);
+            expect(stats?.roleStats.dps).toBe(1);
+            expect(stats?.roleStats.support).toBe(0);
+        });
+
+        it('returns recent matches in descending order', () => {
+            // Create 3 matches
+            for (let i = 0; i < 3; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user1', team: 1, assignedRole: 'tank'},
+                    {userId: 'user2', team: 2, assignedRole: 'support'},
+                ]);
+                completeMatch(db, matchId, 1);
+
+                // Add delay between matches by updating completed_at
+                if (i < 2) {
+                    db.prepare(`
+                        UPDATE matches
+                        SET completed_at = datetime('now', '-${3 - i} hours')
+                        WHERE match_id = ?
+                    `).run(matchId);
+                }
+            }
+
+            const stats = getPlayerStats(db, 'user1');
+
+            expect(stats?.recentMatches).toHaveLength(3);
+            // Most recent match should be first
+            expect(stats!.recentMatches[0].matchId).toBeGreaterThan(stats!.recentMatches[1].matchId);
+        });
+
+        it('limits recent matches to specified count', () => {
+            // Create 12 matches
+            for (let i = 0; i < 12; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user1', team: 1, assignedRole: 'tank'},
+                    {userId: 'user2', team: 2, assignedRole: 'support'},
+                ]);
+                completeMatch(db, matchId, 1);
+            }
+
+            const stats = getPlayerStats(db, 'user1', 5);
+
+            expect(stats?.recentMatches).toHaveLength(5);
+        });
+
+        it('correctly identifies won and lost matches', () => {
+            const match1 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 2, assignedRole: 'support'},
+            ]);
+            completeMatch(db, match1, 1); // user1 wins
+
+            // Make match1 older
+            db.prepare(`
+                UPDATE matches
+                SET completed_at = datetime('now', '-1 hour')
+                WHERE match_id = ?
+            `).run(match1);
+
+            const match2 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 2, assignedRole: 'dps'},
+                {userId: 'user2', team: 1, assignedRole: 'support'},
+            ]);
+            completeMatch(db, match2, 1); // user1 loses
+
+            const stats = getPlayerStats(db, 'user1');
+
+            expect(stats?.recentMatches).toHaveLength(2);
+            expect(stats?.recentMatches[0].wonMatch).toBe(false); // More recent loss
+            expect(stats?.recentMatches[1].wonMatch).toBe(true);  // Earlier win
+        });
+
+        it('correctly identifies draw matches', () => {
+            const matchId = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 2, assignedRole: 'support'},
+            ]);
+            completeMatch(db, matchId, null); // Draw
+
+            const stats = getPlayerStats(db, 'user1');
+
+            expect(stats?.recentMatches).toHaveLength(1);
+            expect(stats?.recentMatches[0].isDraw).toBe(true);
+            expect(stats?.recentMatches[0].wonMatch).toBe(false);
+        });
+
+        it('only counts completed matches', () => {
+            // Create one completed match
+            const match1 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+            ]);
+            completeMatch(db, match1, 1);
+
+            // Create one prepared match
+            const match2 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'dps'},
+            ]);
+
+            const stats = getPlayerStats(db, 'user1');
+
+            expect(stats?.roleStats.tank).toBe(1);
+            expect(stats?.roleStats.dps).toBe(0); // Prepared match not counted
+            expect(stats?.recentMatches).toHaveLength(1);
+        });
+
+        it('includes player info in stats', () => {
+            const stats = getPlayerStats(db, 'user1');
+
+            expect(stats?.player.discord_user_id).toBe('user1');
+            expect(stats?.player.battlenet_id).toBe('Player1#1234');
+            expect(stats?.player.rank).toBe('gold');
+            expect(stats?.player.roles).toContain('tank');
+            expect(stats?.player.roles).toContain('dps');
+        });
+    });
+
+    describe('getLeaderboard', () => {
+        beforeEach(() => {
+            // Register 10 players
+            for (let i = 1; i <= 10; i++) {
+                registerPlayer(db, `user${i}`, `Player${i}#1234`, ['tank'], 'gold');
+            }
+        });
+
+        it('returns empty array when no players meet min games', () => {
+            const leaderboard = getLeaderboard(db, 25, 5);
+
+            expect(leaderboard).toEqual([]);
+        });
+
+        it('sorts by activity-weighted score', () => {
+            // user1: 5 wins, 0 losses (100% win rate, 5 games)
+            for (let i = 0; i < 5; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user1', team: 1, assignedRole: 'tank'},
+                    {userId: 'user2', team: 2, assignedRole: 'tank'},
+                ]);
+                completeMatch(db, matchId, 1);
+            }
+
+            // user3: 6 wins, 0 losses (100% win rate, 6 games) - should be higher due to more games
+            for (let i = 0; i < 6; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user3', team: 1, assignedRole: 'tank'},
+                    {userId: 'user4', team: 2, assignedRole: 'tank'},
+                ]);
+                completeMatch(db, matchId, 1);
+            }
+
+            const leaderboard = getLeaderboard(db, 10, 3);
+
+            expect(leaderboard[0].discordUserId).toBe('user3'); // 6 games, 100% wr
+            expect(leaderboard[1].discordUserId).toBe('user1'); // 5 games, 100% wr
+        });
+
+        it('filters by minimum games', () => {
+            // user1: 2 games (below minimum)
+            for (let i = 0; i < 2; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user1', team: 1, assignedRole: 'tank'},
+                    {userId: 'user2', team: 2, assignedRole: 'tank'},
+                ]);
+                completeMatch(db, matchId, 1);
+            }
+
+            // user3: 5 games (meets minimum)
+            for (let i = 0; i < 5; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user3', team: 1, assignedRole: 'tank'},
+                    {userId: 'user4', team: 2, assignedRole: 'tank'},
+                ]);
+                completeMatch(db, matchId, 1);
+            }
+
+            const leaderboard = getLeaderboard(db, 10, 3);
+
+            // Both user3 and user4 have 5 games, so both should be in leaderboard
+            expect(leaderboard).toHaveLength(2);
+            expect(leaderboard[0].discordUserId).toBe('user3'); // Higher score (wins)
+            expect(leaderboard[1].discordUserId).toBe('user4'); // Lower score (losses)
+        });
+
+        it('respects limit parameter', () => {
+            // Give 5 players some games
+            for (let i = 1; i <= 5; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const matchId = createMatch(db, 'vc123', [
+                        {userId: `user${i}`, team: 1, assignedRole: 'tank'},
+                        {userId: `user${i + 5}`, team: 2, assignedRole: 'tank'},
+                    ]);
+                    completeMatch(db, matchId, 1);
+                }
+            }
+
+            const leaderboard = getLeaderboard(db, 3, 3);
+
+            expect(leaderboard).toHaveLength(3);
+        });
+
+        it('calculates win rate correctly', () => {
+            // user1: 3 wins, 2 losses (60% win rate)
+            for (let i = 0; i < 5; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user1', team: 1, assignedRole: 'tank'},
+                    {userId: 'user2', team: 2, assignedRole: 'tank'},
+                ]);
+                completeMatch(db, matchId, i < 3 ? 1 : 2);
+            }
+
+            const leaderboard = getLeaderboard(db, 10, 3);
+
+            const user1Entry = leaderboard.find(e => e.discordUserId === 'user1');
+            expect(user1Entry?.wins).toBe(3);
+            expect(user1Entry?.losses).toBe(2);
+            expect(user1Entry?.totalGames).toBe(5);
+            expect(user1Entry?.winRate).toBeCloseTo(60, 1);
+        });
+
+        it('handles edge case: 100% win rate with 1 game ranks below 60% with 10 games', () => {
+            // user1: 1 win, 0 losses (100% win rate, 1 game)
+            const match1 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user5', team: 2, assignedRole: 'tank'},
+            ]);
+            completeMatch(db, match1, 1);
+
+            // user2: 6 wins, 4 losses (60% win rate, 10 games)
+            for (let i = 0; i < 10; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user2', team: 1, assignedRole: 'tank'},
+                    {userId: 'user6', team: 2, assignedRole: 'tank'},
+                ]);
+                completeMatch(db, matchId, i < 6 ? 1 : 2);
+            }
+
+            const leaderboard = getLeaderboard(db, 10, 1);
+
+            // user2 should rank higher due to activity weighting
+            expect(leaderboard[0].discordUserId).toBe('user2');
+        });
+
+        it('includes all required fields in leaderboard entry', () => {
+            const matchId = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 2, assignedRole: 'tank'},
+            ]);
+            completeMatch(db, matchId, 1);
+
+            const matchId2 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 2, assignedRole: 'tank'},
+            ]);
+            completeMatch(db, matchId2, 1);
+
+            const matchId3 = createMatch(db, 'vc123', [
+                {userId: 'user1', team: 2, assignedRole: 'tank'},
+                {userId: 'user2', team: 1, assignedRole: 'tank'},
+            ]);
+            completeMatch(db, matchId3, 1);
+
+            const leaderboard = getLeaderboard(db, 10, 1);
+
+            const user1Entry = leaderboard.find(e => e.discordUserId === 'user1');
+            expect(user1Entry).toHaveProperty('discordUserId');
+            expect(user1Entry).toHaveProperty('battlenetId');
+            expect(user1Entry).toHaveProperty('rank');
+            expect(user1Entry).toHaveProperty('wins');
+            expect(user1Entry).toHaveProperty('losses');
+            expect(user1Entry).toHaveProperty('totalGames');
+            expect(user1Entry).toHaveProperty('winRate');
+            expect(user1Entry).toHaveProperty('score');
+        });
+
+        it('secondary sorts by total games when scores are tied', () => {
+            // user1: 3 wins, 0 losses
+            for (let i = 0; i < 3; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user1', team: 1, assignedRole: 'tank'},
+                    {userId: 'user5', team: 2, assignedRole: 'tank'},
+                ]);
+                completeMatch(db, matchId, 1);
+            }
+
+            // user2: 4 wins, 0 losses (same win rate, more games)
+            for (let i = 0; i < 4; i++) {
+                const matchId = createMatch(db, 'vc123', [
+                    {userId: 'user2', team: 1, assignedRole: 'tank'},
+                    {userId: 'user6', team: 2, assignedRole: 'tank'},
+                ]);
+                completeMatch(db, matchId, 1);
+            }
+
+            const leaderboard = getLeaderboard(db, 10, 3);
+
+            // user2 should be first due to more games (higher score from log formula)
+            expect(leaderboard[0].discordUserId).toBe('user2');
+            expect(leaderboard[1].discordUserId).toBe('user1');
         });
     });
 });

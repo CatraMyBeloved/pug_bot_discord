@@ -4,6 +4,7 @@ import {data as registerCommand} from './commands/register';
 import {data as setupCommand} from './commands/setup-wizard';
 import {data as setupResetCommand} from './commands/setup-reset';
 import {data as profileCommand} from './commands/profile';
+import {data as leaderboardCommand} from './commands/leaderboard';
 import {data as updateCommand} from './commands/update';
 import {data as rosterCommand} from './commands/roster';
 import {data as schedulepugCommand} from './commands/schedulepug';
@@ -21,6 +22,7 @@ const commands = [
     setupCommand.toJSON(),
     setupResetCommand.toJSON(),
     profileCommand.toJSON(),
+    leaderboardCommand.toJSON(),
     updateCommand.toJSON(),
     rosterCommand.toJSON(),
     schedulepugCommand.toJSON(),

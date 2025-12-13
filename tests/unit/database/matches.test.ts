@@ -637,4 +637,165 @@ describe('Match Database Operations', () => {
             expect(result[0].battlenet_id).toBe('Player1#1234');
         });
     });
+
+    describe('Win/Loss Tracking', () => {
+        let matchId: number;
+
+        beforeEach(() => {
+            const participants = [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 1, assignedRole: 'dps'},
+                {userId: 'user3', team: 2, assignedRole: 'tank'},
+                {userId: 'user4', team: 2, assignedRole: 'dps'},
+            ];
+            matchId = createMatch(db, 'vc123', participants);
+            startMatch(db, matchId);
+        });
+
+        it('increments wins for winning team players', () => {
+            completeMatch(db, matchId, 1);
+
+            const user1 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user1') as any;
+            const user2 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user2') as any;
+
+            expect(user1.wins).toBe(1);
+            expect(user2.wins).toBe(1);
+        });
+
+        it('increments losses for losing team players', () => {
+            completeMatch(db, matchId, 1);
+
+            const user3 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user3') as any;
+            const user4 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user4') as any;
+
+            expect(user3.losses).toBe(1);
+            expect(user4.losses).toBe(1);
+        });
+
+        it('does not update stats for draw matches', () => {
+            completeMatch(db, matchId, null);
+
+            const user1 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user1') as any;
+            const user3 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user3') as any;
+
+            expect(user1.wins).toBe(0);
+            expect(user1.losses).toBe(0);
+            expect(user3.wins).toBe(0);
+            expect(user3.losses).toBe(0);
+        });
+
+        it('handles team 2 victory correctly', () => {
+            completeMatch(db, matchId, 2);
+
+            const user1 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user1') as any;
+            const user3 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user3') as any;
+
+            expect(user1.losses).toBe(1);
+            expect(user3.wins).toBe(1);
+        });
+
+        it('accumulates stats across multiple matches', () => {
+            completeMatch(db, matchId, 1);
+
+            // Create second match
+            const match2Participants = [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user3', team: 2, assignedRole: 'tank'},
+            ];
+            const match2Id = createMatch(db, 'vc123', match2Participants);
+            startMatch(db, match2Id);
+            completeMatch(db, match2Id, 2);
+
+            const user1 = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user1') as any;
+
+            expect(user1.wins).toBe(1);
+            expect(user1.losses).toBe(1);
+        });
+
+        it('updates stats atomically within transaction', () => {
+            completeMatch(db, matchId, 1);
+
+            // Verify match state and player stats are both updated
+            const match = db.prepare('SELECT state, winning_team FROM matches WHERE match_id = ?')
+                .get(matchId) as any;
+            const user1 = db.prepare('SELECT wins FROM players WHERE discord_user_id = ?')
+                .get('user1') as any;
+            const user3 = db.prepare('SELECT losses FROM players WHERE discord_user_id = ?')
+                .get('user3') as any;
+
+            expect(match.state).toBe('complete');
+            expect(match.winning_team).toBe(1);
+            expect(user1.wins).toBe(1);
+            expect(user3.losses).toBe(1);
+        });
+
+        it('correctly identifies losing team when team 1 wins', () => {
+            completeMatch(db, matchId, 1);
+
+            const team1Player = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user1') as any;
+            const team2Player = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user3') as any;
+
+            expect(team1Player.wins).toBe(1);
+            expect(team1Player.losses).toBe(0);
+            expect(team2Player.wins).toBe(0);
+            expect(team2Player.losses).toBe(1);
+        });
+
+        it('correctly identifies losing team when team 2 wins', () => {
+            completeMatch(db, matchId, 2);
+
+            const team1Player = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user1') as any;
+            const team2Player = db.prepare('SELECT wins, losses FROM players WHERE discord_user_id = ?')
+                .get('user3') as any;
+
+            expect(team1Player.wins).toBe(0);
+            expect(team1Player.losses).toBe(1);
+            expect(team2Player.wins).toBe(1);
+            expect(team2Player.losses).toBe(0);
+        });
+
+        it('handles full 10-player match stats update', () => {
+            const fullMatchParticipants = [
+                {userId: 'user1', team: 1, assignedRole: 'tank'},
+                {userId: 'user2', team: 1, assignedRole: 'dps'},
+                {userId: 'user3', team: 1, assignedRole: 'dps'},
+                {userId: 'user4', team: 1, assignedRole: 'support'},
+                {userId: 'user5', team: 1, assignedRole: 'support'},
+                {userId: 'user6', team: 2, assignedRole: 'tank'},
+                {userId: 'user7', team: 2, assignedRole: 'dps'},
+                {userId: 'user8', team: 2, assignedRole: 'dps'},
+                {userId: 'user9', team: 2, assignedRole: 'support'},
+                {userId: 'user10', team: 2, assignedRole: 'support'},
+            ];
+            const fullMatchId = createMatch(db, 'vc123', fullMatchParticipants);
+            startMatch(db, fullMatchId);
+            completeMatch(db, fullMatchId, 1);
+
+            // Check that all 5 team 1 players have a win
+            for (let i = 1; i <= 5; i++) {
+                const player = db.prepare('SELECT wins FROM players WHERE discord_user_id = ?')
+                    .get(`user${i}`) as any;
+                expect(player.wins).toBe(1);
+            }
+
+            // Check that all 5 team 2 players have a loss
+            for (let i = 6; i <= 10; i++) {
+                const player = db.prepare('SELECT losses FROM players WHERE discord_user_id = ?')
+                    .get(`user${i}`) as any;
+                expect(player.losses).toBe(1);
+            }
+        });
+    });
 });

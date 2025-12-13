@@ -99,7 +99,7 @@ async function handleComplete(
                 : 'Team 2';
 
     await interaction.reply({
-        content: `Match completed!\nWinning Team: ${winnerText}\n\n*Note: Win/loss tracking will be added in Phase 2.*`,
+        content: `Match completed!\nWinning Team: ${winnerText}\n\nPlayer stats have been updated.`,
         flags: MessageFlags.Ephemeral,
     });
 }

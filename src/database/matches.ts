@@ -103,21 +103,55 @@ export function cancelMatch(db: Database.Database, matchId: number): void {
 }
 
 /**
- * Mark match as complete with winning team
+ * Mark match as complete with winning team and update player win/loss stats
  */
 export function completeMatch(
     db: Database.Database,
     matchId: number,
     winningTeam: number | null
 ): void {
-    const stmt = db.prepare(`
-        UPDATE matches
-        SET state        = 'complete',
-            winning_team = ?,
-            completed_at = CURRENT_TIMESTAMP
-        WHERE match_id = ?
-    `);
-    stmt.run(winningTeam, matchId);
+    // Use transaction for atomicity
+    const transaction = db.transaction(() => {
+        // Update match state
+        const updateMatchStmt = db.prepare(`
+            UPDATE matches
+            SET state        = 'complete',
+                winning_team = ?,
+                completed_at = CURRENT_TIMESTAMP
+            WHERE match_id = ?
+        `);
+        updateMatchStmt.run(winningTeam, matchId);
+
+        // Update player stats only if there's a winner (not a draw)
+        if (winningTeam !== null) {
+            // Increment wins for winning team
+            const updateWinsStmt = db.prepare(`
+                UPDATE players
+                SET wins = wins + 1
+                WHERE discord_user_id IN (
+                    SELECT discord_user_id
+                    FROM match_participants
+                    WHERE match_id = ? AND team = ?
+                )
+            `);
+            updateWinsStmt.run(matchId, winningTeam);
+
+            // Increment losses for losing team
+            const losingTeam = winningTeam === 1 ? 2 : 1;
+            const updateLossesStmt = db.prepare(`
+                UPDATE players
+                SET losses = losses + 1
+                WHERE discord_user_id IN (
+                    SELECT discord_user_id
+                    FROM match_participants
+                    WHERE match_id = ? AND team = ?
+                )
+            `);
+            updateLossesStmt.run(matchId, losingTeam);
+        }
+    });
+
+    transaction();
 }
 
 /**
