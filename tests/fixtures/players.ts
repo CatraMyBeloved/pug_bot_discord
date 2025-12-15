@@ -1,4 +1,5 @@
 import {PlayerWithRoles, Rank, Role, SelectedPlayer} from '../../src/types/matchmaking';
+import {getSeedingParams} from '../../src/utils/trueskill';
 
 
 let userIdCounter = 1;
@@ -13,11 +14,14 @@ export function createMockPlayer(
     overrides?: Partial<PlayerWithRoles>
 ): PlayerWithRoles {
     const id = userIdCounter++;
+    const rank = overrides?.rank || 'gold';
+    const {mu} = getSeedingParams(rank);
     return {
         userId: `user${id}`,
         battlenetId: `Player${id}#1234`,
         availableRoles: ['dps'],
-        rank: 'gold',
+        rank: rank,
+        mu: mu,
         ...overrides,
     };
 }

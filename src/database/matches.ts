@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import {calculatePostMatch} from '../utils/trueskill';
 
 export interface Match {
     match_id: number;
@@ -122,30 +123,73 @@ export function completeMatch(
         `);
         updateMatchStmt.run(winningTeam, matchId);
 
-        // Update player stats only if there's a winner (not a draw)
+        const participantsStmt = db.prepare(`
+            SELECT mp.discord_user_id, mp.team, p.mu, p.sigma
+            FROM match_participants mp
+                     JOIN players p ON mp.discord_user_id = p.discord_user_id
+            WHERE mp.match_id = ?
+        `);
+        const participants = participantsStmt.all(matchId) as Array<{
+            discord_user_id: string,
+            team: number,
+            mu: number,
+            sigma: number
+        }>;
+
+        const team1 = participants.filter(p => p.team === 1);
+        const team2 = participants.filter(p => p.team === 2);
+
+        let winners = team1;
+        let losers = team2;
+        const isDraw = winningTeam === null;
+
+        if (winningTeam === 2) {
+            winners = team2;
+            losers = team1;
+        }
+
+        const {winners: newWinners, losers: newLosers} = calculatePostMatch(
+            winners.map(player => ({mu: player.mu, sigma: player.sigma})),
+            losers.map(player => ({mu: player.mu, sigma: player.sigma})),
+            isDraw
+        );
+
+        const updateSkillStmt = db.prepare(`
+            UPDATE players
+            SET mu    = ?,
+                sigma = ?
+            WHERE discord_user_id = ?
+        `);
+
+        // Update winners (or team 1 if draw)
+        winners.forEach((player, index) => {
+            updateSkillStmt.run(newWinners[index].mu, newWinners[index].sigma, player.discord_user_id);
+        });
+
+        // Update losers (or team 2 if draw)
+        losers.forEach((player, index) => {
+            updateSkillStmt.run(newLosers[index].mu, newLosers[index].sigma, player.discord_user_id);
+        });
+
         if (winningTeam !== null) {
-            // Increment wins for winning team
             const updateWinsStmt = db.prepare(`
                 UPDATE players
                 SET wins = wins + 1
-                WHERE discord_user_id IN (
-                    SELECT discord_user_id
-                    FROM match_participants
-                    WHERE match_id = ? AND team = ?
-                )
+                WHERE discord_user_id IN (SELECT discord_user_id
+                                          FROM match_participants
+                                          WHERE match_id = ?
+                                            AND team = ?)
             `);
             updateWinsStmt.run(matchId, winningTeam);
 
-            // Increment losses for losing team
             const losingTeam = winningTeam === 1 ? 2 : 1;
             const updateLossesStmt = db.prepare(`
                 UPDATE players
                 SET losses = losses + 1
-                WHERE discord_user_id IN (
-                    SELECT discord_user_id
-                    FROM match_participants
-                    WHERE match_id = ? AND team = ?
-                )
+                WHERE discord_user_id IN (SELECT discord_user_id
+                                          FROM match_participants
+                                          WHERE match_id = ?
+                                            AND team = ?)
             `);
             updateLossesStmt.run(matchId, losingTeam);
         }

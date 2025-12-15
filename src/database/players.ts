@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import {getSeedingParams} from '../utils/trueskill';
 
 export interface Player {
     discord_user_id: string;
@@ -6,6 +7,8 @@ export interface Player {
     rank: string;
     wins: number;
     losses: number;
+    mu: number;
+    sigma: number;
     registered_at: string;
     roles?: string[];
 }
@@ -17,11 +20,12 @@ export function registerPlayer(
     roles: string[],
     rank: string
 ): void {
+    const {mu, sigma} = getSeedingParams(rank);
     const playerStmt = db.prepare(`
-        INSERT INTO players (discord_user_id, battlenet_id, rank)
-        VALUES (?, ?, ?)
+        INSERT INTO players (discord_user_id, battlenet_id, rank, mu, sigma)
+        VALUES (?, ?, ?, ?, ?)
     `);
-    playerStmt.run(discordUserId, battlenetId, rank);
+    playerStmt.run(discordUserId, battlenetId, rank, mu, sigma);
 
     const roleStmt = db.prepare(`
         INSERT INTO player_roles (discord_user_id, role)
@@ -211,11 +215,14 @@ export interface LeaderboardEntry {
     totalGames: number;
     winRate: number;
     score: number;
+    mu: number;
+    sigma: number;
+    sr: number;
 }
 
 /**
- * Get leaderboard with activity-weighted scoring
- * Score = (Win Rate × 100) × log(1 + Total Games)
+ * Get leaderboard sorted by Skill Rating (SR)
+ * SR = (mu - 3 * sigma) * 100
  */
 export function getLeaderboard(
     db: Database.Database,
@@ -228,22 +235,18 @@ export function getLeaderboard(
                rank,
                wins,
                losses,
+               mu,
+               sigma,
+               MAX(0, ROUND((mu - 3 * sigma) * 100))                            as sr,
                (wins + losses)                                                  as total_games,
                CASE
                    WHEN (wins + losses) > 0
                        THEN CAST(wins AS REAL) / (wins + losses) * 100.0
                    ELSE 0.0
-                   END                                                          as win_rate,
-               -- Activity-weighted score: win_rate * log(1 + games)
-               CASE
-                   WHEN (wins + losses) > 0
-                       THEN (CAST(wins AS REAL) / (wins + losses) * 100.0) *
-                            LOG(1.0 + (wins + losses))
-                   ELSE 0.0
-                   END                                                          as score
+                   END                                                          as win_rate
         FROM players
         WHERE (wins + losses) >= ?
-        ORDER BY score DESC, total_games DESC
+        ORDER BY sr DESC, total_games DESC
         LIMIT ?
     `);
 

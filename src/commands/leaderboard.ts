@@ -41,7 +41,7 @@ export async function execute(
 
     const embed = new EmbedBuilder()
         .setTitle('🏆 Player Leaderboard')
-        .setDescription(`Top ${leaderboard.length} players with ${minGames}+ games played\n*Ranked by performance score (win rate × activity)*`)
+        .setDescription(`Top ${leaderboard.length} players with ${minGames}+ games played\n*Ranked by Skill Rating (SR)*`)
         .setColor(0xFFD700) // Gold color
         .setTimestamp();
 
@@ -49,11 +49,10 @@ export async function execute(
     const leaderboardText = leaderboard.map((entry, index) => {
         const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
         const winRateDisplay = entry.winRate.toFixed(1);
-        const scoreDisplay = entry.score.toFixed(1);
 
         return `${medal} **${entry.battlenetId}**\n` +
-            `   ${entry.wins}W-${entry.losses}L (${winRateDisplay}%) • ` +
-            `${entry.totalGames} games • Score: ${scoreDisplay}`;
+            `   **${entry.sr} SR** • ${entry.wins}W-${entry.losses}L (${winRateDisplay}%) • ` +
+            `${entry.totalGames} games`;
     }).join('\n\n');
 
     // Discord embeds have a 4096 character limit for description

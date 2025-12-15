@@ -41,6 +41,18 @@ export function initDatabase(): Database.Database {
                     NULL
                 DEFAULT
                     0,
+            mu
+                REAL
+                NOT
+                    NULL
+                DEFAULT
+                    25.0,
+            sigma
+                REAL
+                NOT
+                    NULL
+                DEFAULT
+                    8.333,
             registered_at
                 DATETIME
                 DEFAULT
@@ -70,7 +82,7 @@ export function initDatabase(): Database.Database {
                 (
                  discord_user_id
                     )
-                    ON DELETE CASCADE
+                ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS matches
@@ -179,13 +191,44 @@ export function initDatabase(): Database.Database {
         CREATE TABLE IF NOT EXISTS button_interactions
         (
             interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id       TEXT     NOT NULL,
-            user_id        TEXT     NOT NULL,
-            button_id      TEXT     NOT NULL,
-            action_type    TEXT     NOT NULL,
+            guild_id       TEXT NOT NULL,
+            user_id        TEXT NOT NULL,
+            button_id      TEXT NOT NULL,
+            action_type    TEXT NOT NULL,
             created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     `);
+
+    const playerColumns = db.pragma('table_info(players)') as Array<{ name: string }>;
+    const hasMu = playerColumns.some(col => col.name === 'mu');
+
+    if (!hasMu) {
+        console.log('Migrating database: Adding TrueSkill columns...');
+        db.prepare('ALTER TABLE players ADD COLUMN mu REAL DEFAULT 25.0').run();
+        db.prepare('ALTER TABLE players ADD COLUMN sigma REAL DEFAULT 8.333').run();
+
+        try {
+            const {getSeedingParams} = require('../utils/trueskill');
+            const players = db.prepare('SELECT discord_user_id, rank FROM players').all() as Array<{
+                discord_user_id: string,
+                rank: string
+            }>;
+
+            const updateStmt = db.prepare('UPDATE players SET mu = ?, sigma = ? WHERE discord_user_id = ?');
+
+            const transaction = db.transaction(() => {
+                for (const player of players) {
+                    const {mu, sigma} = getSeedingParams(player.rank);
+                    updateStmt.run(mu, sigma, player.discord_user_id);
+                }
+            });
+
+            transaction();
+            console.log(`Seeded TrueSkill ratings for ${players.length} existing players.`);
+        } catch (e) {
+            console.error('Failed to seed existing players during migration:', e);
+        }
+    }
 
     console.log('Database initialized');
     return db;

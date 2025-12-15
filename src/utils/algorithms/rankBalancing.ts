@@ -5,19 +5,19 @@ import {BalancedTeams, RANK_VALUES, Role, SelectedPlayer, TEAM_COMPOSITION,} fro
  */
 interface TeamState {
     players: SelectedPlayer[];
-    totalRank: number;
+    totalSkill: number;
     roleCounts: Record<Role, number>;
 }
 
 /**
- * Rank-based team balancing algorithm
+ * TrueSkill-based team balancing algorithm
  *
- * Balances two teams by distributing players to minimize rank difference
+ * Balances two teams by distributing players to minimize skill difference (sum of mu)
  * while maintaining role composition requirements (1 tank, 2 DPS, 2 support per team).
  *
  * Uses greedy assignment:
- * - Sort players by rank (descending)
- * - For each player, assign to team with lower total rank (if role slot available)
+ * - Sort players by skill/mu (descending)
+ * - For each player, assign to team with lower total skill (if role slot available)
  * - If role is full on lower team, assign to other team
  *
  * @param players - 10 selected players with assigned roles
@@ -34,20 +34,19 @@ export function balanceTeamsByRank(
 
     const team1: TeamState = {
         players: [],
-        totalRank: 0,
+        totalSkill: 0,
         roleCounts: {tank: 0, dps: 0, support: 0},
     };
 
     const team2: TeamState = {
         players: [],
-        totalRank: 0,
+        totalSkill: 0,
         roleCounts: {tank: 0, dps: 0, support: 0},
     };
 
-    const sortedPlayers = [...players].sort((a, b) => {
-        const rankA = RANK_VALUES[a.rank];
-        const rankB = RANK_VALUES[b.rank];
-        return rankB - rankA;
+    const sortedPlayers = [...players].sort((playerA, playerB) => {
+        // Sort by skill (mu) descending, so highest skilled players are processed first
+        return playerB.mu - playerA.mu;
     });
 
     /**
@@ -62,7 +61,7 @@ export function balanceTeamsByRank(
      */
     function addToTeam(team: TeamState, player: SelectedPlayer): void {
         team.players.push(player);
-        team.totalRank += RANK_VALUES[player.rank];
+        team.totalSkill += player.mu;
         team.roleCounts[player.assignedRole]++;
     }
 
@@ -73,7 +72,7 @@ export function balanceTeamsByRank(
         const team2CanAdd = canAddToTeam(team2, role);
 
         if (team1CanAdd && team2CanAdd) {
-            if (team1.totalRank <= team2.totalRank) {
+            if (team1.totalSkill <= team2.totalSkill) {
                 addToTeam(team1, player);
             } else {
                 addToTeam(team2, player);

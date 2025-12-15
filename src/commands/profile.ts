@@ -1,6 +1,7 @@
 import {ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder} from 'discord.js';
 import Database from 'better-sqlite3';
 import {getPlayerStats} from '../database/players';
+import {getDisplaySR} from '../utils/trueskill';
 
 export const data = new SlashCommandBuilder()
     .setName('profile')
@@ -33,6 +34,8 @@ export async function execute(
         return;
     }
 
+    const sr = getDisplaySR(stats.player.mu, stats.player.sigma);
+
     // Build embed
     const embed = new EmbedBuilder()
         .setTitle(`${targetUser.username}'s Profile`)
@@ -47,6 +50,11 @@ export async function execute(
             {
                 name: 'Current Rank',
                 value: capitalizeRank(stats.player.rank),
+                inline: true
+            },
+            {
+                name: 'Skill Rating',
+                value: `${sr} SR`,
                 inline: true
             },
             {

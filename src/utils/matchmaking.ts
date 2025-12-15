@@ -33,6 +33,7 @@ export function createMatchTeams(
                 battlenetId: player.battlenet_id,
                 availableRoles: player.roles as Role[],
                 rank: player.rank as Rank,
+                mu: player.mu,
             });
         }
     }

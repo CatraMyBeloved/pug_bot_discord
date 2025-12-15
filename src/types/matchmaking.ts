@@ -23,6 +23,7 @@ export interface PlayerWithRoles {
     battlenetId: string;
     availableRoles: Role[];
     rank: Rank;
+    mu: number;
 }
 
 /**

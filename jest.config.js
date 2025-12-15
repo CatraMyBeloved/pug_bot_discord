@@ -15,8 +15,12 @@ module.exports = {
                 esModuleInterop: true,
                 skipLibCheck: true,
             }
-        }]
+        }],
+        '^.+\\.js$': 'babel-jest',
     },
+    transformIgnorePatterns: [
+        'node_modules/(?!(ts-trueskill|ts-gaussian)/)'
+    ],
 
     collectCoverageFrom: [
         'src/**/*.ts',
