@@ -230,23 +230,23 @@ export function getLeaderboard(
     minGames: number = 3
 ): LeaderboardEntry[] {
     const query = db.prepare(`
-        SELECT discord_user_id,
-               battlenet_id,
+        SELECT discord_user_id                                                  as discordUserId,
+               battlenet_id                                                     as battlenetId,
                rank,
                wins,
                losses,
                mu,
                sigma,
                MAX(0, ROUND((mu - 3 * sigma) * 100))                            as sr,
-               (wins + losses)                                                  as total_games,
+               (wins + losses)                                                  as totalGames,
                CASE
                    WHEN (wins + losses) > 0
                        THEN CAST(wins AS REAL) / (wins + losses) * 100.0
                    ELSE 0.0
-                   END                                                          as win_rate
+                   END                                                          as winRate
         FROM players
         WHERE (wins + losses) >= ?
-        ORDER BY sr DESC, total_games DESC
+        ORDER BY sr DESC, totalGames DESC
         LIMIT ?
     `);
 

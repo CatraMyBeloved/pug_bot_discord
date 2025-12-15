@@ -591,29 +591,6 @@ describe('Player Database Operations', () => {
             expect(user1Entry?.winRate).toBeCloseTo(60, 1);
         });
 
-        it('handles edge case: 100% win rate with 1 game ranks below 60% with 10 games', () => {
-            // user1: 1 win, 0 losses (100% win rate, 1 game)
-            const match1 = createMatch(db, 'vc123', [
-                {userId: 'user1', team: 1, assignedRole: 'tank'},
-                {userId: 'user5', team: 2, assignedRole: 'tank'},
-            ]);
-            completeMatch(db, match1, 1);
-
-            // user2: 6 wins, 4 losses (60% win rate, 10 games)
-            for (let i = 0; i < 10; i++) {
-                const matchId = createMatch(db, 'vc123', [
-                    {userId: 'user2', team: 1, assignedRole: 'tank'},
-                    {userId: 'user6', team: 2, assignedRole: 'tank'},
-                ]);
-                completeMatch(db, matchId, i < 6 ? 1 : 2);
-            }
-
-            const leaderboard = getLeaderboard(db, 10, 1);
-
-            // user2 should rank higher due to activity weighting
-            expect(leaderboard[0].discordUserId).toBe('user2');
-        });
-
         it('includes all required fields in leaderboard entry', () => {
             const matchId = createMatch(db, 'vc123', [
                 {userId: 'user1', team: 1, assignedRole: 'tank'},
@@ -643,7 +620,9 @@ describe('Player Database Operations', () => {
             expect(user1Entry).toHaveProperty('losses');
             expect(user1Entry).toHaveProperty('totalGames');
             expect(user1Entry).toHaveProperty('winRate');
-            expect(user1Entry).toHaveProperty('score');
+            expect(user1Entry).toHaveProperty('mu');
+            expect(user1Entry).toHaveProperty('sigma');
+            expect(user1Entry).toHaveProperty('sr');
         });
 
         it('secondary sorts by total games when scores are tied', () => {

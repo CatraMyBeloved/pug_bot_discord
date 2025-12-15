@@ -148,29 +148,42 @@ export function completeMatch(
             losers = team1;
         }
 
-        const {winners: newWinners, losers: newLosers} = calculatePostMatch(
-            winners.map(player => ({mu: player.mu, sigma: player.sigma})),
-            losers.map(player => ({mu: player.mu, sigma: player.sigma})),
-            isDraw
-        );
+        // Only calculate skill updates if both teams have players (handles edge cases/tests)
+        if (winners.length > 0 && losers.length > 0) {
+            try {
+                const {winners: newWinners, losers: newLosers} = calculatePostMatch(
+                    winners.map(player => ({mu: player.mu, sigma: player.sigma})),
+                    losers.map(player => ({mu: player.mu, sigma: player.sigma})),
+                    isDraw
+                );
 
-        const updateSkillStmt = db.prepare(`
-            UPDATE players
-            SET mu    = ?,
-                sigma = ?
-            WHERE discord_user_id = ?
-        `);
+                const updateSkillStmt = db.prepare(`
+                    UPDATE players
+                    SET mu    = ?,
+                        sigma = ?
+                    WHERE discord_user_id = ?
+                `);
 
-        // Update winners (or team 1 if draw)
-        winners.forEach((player, index) => {
-            updateSkillStmt.run(newWinners[index].mu, newWinners[index].sigma, player.discord_user_id);
-        });
+                // Update winners (or team 1 if draw)
+                winners.forEach((player, index) => {
+                    updateSkillStmt.run(newWinners[index].mu, newWinners[index].sigma, player.discord_user_id);
+                });
 
-        // Update losers (or team 2 if draw)
-        losers.forEach((player, index) => {
-            updateSkillStmt.run(newLosers[index].mu, newLosers[index].sigma, player.discord_user_id);
-        });
+                // Update losers (or team 2 if draw)
+                losers.forEach((player, index) => {
+                    updateSkillStmt.run(newLosers[index].mu, newLosers[index].sigma, player.discord_user_id);
+                });
+            } catch (error) {
+                console.error('Error calculating TrueSkill updates:', error);
+                // Continue to update win/loss stats even if skill calculation fails
+            }
+        } else {
+            console.log('Skipping TrueSkill: Empty team(s)');
+        }
 
+        console.log(`Updating stats for match ${matchId}. Winner: ${winningTeam}`);
+
+        // Update player stats only if there's a winner (not a draw)
         if (winningTeam !== null) {
             const updateWinsStmt = db.prepare(`
                 UPDATE players

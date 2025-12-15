@@ -19,6 +19,8 @@ export function createTestDatabase(): Database.Database {
             rank            TEXT     NOT NULL,
             wins            INTEGER  NOT NULL DEFAULT 0,
             losses          INTEGER  NOT NULL DEFAULT 0,
+            mu              REAL     NOT NULL DEFAULT 25.0,
+            sigma           REAL     NOT NULL DEFAULT 8.333,
             registered_at   DATETIME          DEFAULT CURRENT_TIMESTAMP
         );
 
