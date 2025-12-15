@@ -24,15 +24,15 @@ export function buildMainMenuEmbed(session: WizardSession): EmbedBuilder {
         .setTitle('PUG Bot Setup Wizard')
         .setDescription(`Configure your bot by completing all categories below.\n\n**Progress:** ${completedCount}/${totalRequired} categories complete`)
         .addFields(
-            { name: 'Voice Channels', value: vcStatus, inline: true },
-            { name: 'Roles', value: rolesStatus, inline: true },
-            { name: '\u200B', value: '\u200B', inline: true },
-            { name: 'Announcements', value: announcementsStatus, inline: true },
-            { name: 'Settings', value: settingsStatus, inline: true },
-            { name: '\u200B', value: '\u200B', inline: true }
+            {name: 'Voice Channels', value: vcStatus, inline: true},
+            {name: 'Roles', value: rolesStatus, inline: true},
+            {name: '\u200B', value: '\u200B', inline: true},
+            {name: 'Announcements', value: announcementsStatus, inline: true},
+            {name: 'Settings', value: settingsStatus, inline: true},
+            {name: '\u200B', value: '\u200B', inline: true}
         )
         .setColor(completedCount === totalRequired ? 0x00FF00 : 0xFFAA00)
-        .setFooter({ text: 'Click a category below to configure it' });
+        .setFooter({text: 'Click a category below to configure it'});
 }
 
 export function buildMainMenuButtons(isComplete: boolean): ActionRowBuilder<ButtonBuilder>[] {
@@ -81,7 +81,7 @@ export function buildMainMenuButtons(isComplete: boolean): ActionRowBuilder<Butt
 }
 
 export function buildVoiceChannelsEmbed(session: WizardSession): EmbedBuilder {
-    const { settings } = session;
+    const {settings} = session;
 
     const mainVc = settings.mainVcId ? `<#${settings.mainVcId}> **[SET]**` : '[NOT SET]';
     const team1Vc = settings.team1VcId ? `<#${settings.team1VcId}> **[SET]**` : '[NOT SET]';
@@ -91,12 +91,12 @@ export function buildVoiceChannelsEmbed(session: WizardSession): EmbedBuilder {
         .setTitle('Voice Channels Configuration')
         .setDescription('Configure the three voice channels used for PUG matches.')
         .addFields(
-            { name: 'Main VC (Lobby)', value: mainVc },
-            { name: 'Team 1 VC', value: team1Vc },
-            { name: 'Team 2 VC', value: team2Vc }
+            {name: 'Main VC (Lobby)', value: mainVc},
+            {name: 'Team 1 VC', value: team1Vc},
+            {name: 'Team 2 VC', value: team2Vc}
         )
         .setColor(0x5865F2)
-        .setFooter({ text: 'Select channels from the dropdowns below' });
+        .setFooter({text: 'Select channels from the dropdowns below'});
 }
 
 export function buildVoiceChannelsComponents(): ActionRowBuilder<ChannelSelectMenuBuilder | ButtonBuilder>[] {
@@ -142,7 +142,7 @@ export function buildVoiceChannelsComponents(): ActionRowBuilder<ChannelSelectMe
 }
 
 export function buildRolesEmbed(session: WizardSession): EmbedBuilder {
-    const { settings } = session;
+    const {settings} = session;
 
     const pugRole = settings.pugRoleId ? `<@&${settings.pugRoleId}> **[SET]**` : '[NOT SET]';
     const leaderRoles = settings.pugLeaderRoleIds.length > 0
@@ -153,11 +153,11 @@ export function buildRolesEmbed(session: WizardSession): EmbedBuilder {
         .setTitle('Roles Configuration')
         .setDescription('Configure the roles used for PUG management.')
         .addFields(
-            { name: 'PUG Role', value: pugRole },
-            { name: 'PUG Leader Roles (can select multiple)', value: leaderRoles }
+            {name: 'PUG Role', value: pugRole},
+            {name: 'PUG Leader Roles (can select multiple)', value: leaderRoles}
         )
         .setColor(0x5865F2)
-        .setFooter({ text: 'Select roles from the dropdowns below' });
+        .setFooter({text: 'Select roles from the dropdowns below'});
 }
 
 export function buildRolesComponents(): ActionRowBuilder<RoleSelectMenuBuilder | ButtonBuilder>[] {
@@ -191,7 +191,7 @@ export function buildRolesComponents(): ActionRowBuilder<RoleSelectMenuBuilder |
 }
 
 export function buildAnnouncementsEmbed(session: WizardSession): EmbedBuilder {
-    const { settings } = session;
+    const {settings} = session;
 
     const channel = settings.announcementChannelId
         ? `<#${settings.announcementChannelId}> **[SET]**`
@@ -200,9 +200,9 @@ export function buildAnnouncementsEmbed(session: WizardSession): EmbedBuilder {
     return new EmbedBuilder()
         .setTitle('Announcements Configuration')
         .setDescription('Configure the channel where PUG announcements and reminders will be sent.')
-        .addFields({ name: 'Announcement Channel', value: channel })
+        .addFields({name: 'Announcement Channel', value: channel})
         .setColor(0x5865F2)
-        .setFooter({ text: 'Select a text channel from the dropdown below' });
+        .setFooter({text: 'Select a text channel from the dropdown below'});
 }
 
 export function buildAnnouncementsComponents(): ActionRowBuilder<ChannelSelectMenuBuilder | ButtonBuilder>[] {
@@ -228,7 +228,7 @@ export function buildAnnouncementsComponents(): ActionRowBuilder<ChannelSelectMe
 }
 
 export function buildSettingsEmbed(session: WizardSession): EmbedBuilder {
-    const { settings } = session;
+    const {settings} = session;
 
     const autoMove = settings.autoMove ? '**ENABLED**' : 'DISABLED';
     const description = settings.autoMove
@@ -238,7 +238,7 @@ export function buildSettingsEmbed(session: WizardSession): EmbedBuilder {
     return new EmbedBuilder()
         .setTitle('Bot Settings')
         .setDescription(description)
-        .addFields({ name: 'Auto-move to Team VCs', value: autoMove })
+        .addFields({name: 'Auto-move to Team VCs', value: autoMove})
         .setColor(0x5865F2);
 }
 
@@ -265,20 +265,24 @@ export function buildSettingsButtons(currentValue: boolean): ActionRowBuilder<Bu
 }
 
 export function buildReviewEmbed(session: WizardSession): EmbedBuilder {
-    const { settings } = session;
+    const {settings} = session;
 
     return new EmbedBuilder()
         .setTitle('Review Configuration')
         .setDescription('Please review your configuration before finalizing.')
         .addFields(
-            { name: 'Main VC', value: `<#${settings.mainVcId}>`, inline: true },
-            { name: 'Team 1 VC', value: `<#${settings.team1VcId}>`, inline: true },
-            { name: 'Team 2 VC', value: `<#${settings.team2VcId}>`, inline: true },
-            { name: 'PUG Role', value: `<@&${settings.pugRoleId}>`, inline: true },
-            { name: 'PUG Leader Roles', value: settings.pugLeaderRoleIds.map(id => `<@&${id}>`).join(', '), inline: true },
-            { name: '\u200B', value: '\u200B', inline: true },
-            { name: 'Announcement Channel', value: `<#${settings.announcementChannelId}>`, inline: true },
-            { name: 'Auto-move', value: settings.autoMove ? 'Enabled' : 'Disabled', inline: true }
+            {name: 'Main VC', value: `<#${settings.mainVcId}>`, inline: true},
+            {name: 'Team 1 VC', value: `<#${settings.team1VcId}>`, inline: true},
+            {name: 'Team 2 VC', value: `<#${settings.team2VcId}>`, inline: true},
+            {name: 'PUG Role', value: `<@&${settings.pugRoleId}>`, inline: true},
+            {
+                name: 'PUG Leader Roles',
+                value: settings.pugLeaderRoleIds.map(id => `<@&${id}>`).join(', '),
+                inline: true
+            },
+            {name: '\u200B', value: '\u200B', inline: true},
+            {name: 'Announcement Channel', value: `<#${settings.announcementChannelId}>`, inline: true},
+            {name: 'Auto-move', value: settings.autoMove ? 'Enabled' : 'Disabled', inline: true}
         )
         .setColor(0x00FF00);
 }

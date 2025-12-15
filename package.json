@@ -20,7 +20,8 @@
     "discord.js": "^14.24.2",
     "dotenv": "^17.2.3",
     "node-cron": "^4.2.1",
-    "pnpm": "^10.22.0"
+    "pnpm": "^10.22.0",
+    "ts-trueskill": "^5.1.0"
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
