@@ -1,6 +1,6 @@
 import {ChatInputCommandInteraction, GuildMember, MessageFlags, SlashCommandBuilder, VoiceChannel,} from 'discord.js';
 import Database from 'better-sqlite3';
-import {getGuildConfig, getPugLeaderRoles} from '../database/config';
+import {getGuildConfig, getPugLeaderRoles, GuildConfig} from '../database/config';
 import {cancelMatch, createMatch, getCurrentMatch, getMatchParticipants, startMatch,} from '../database/matches';
 import {hasMatchPermission} from '../utils/permissions';
 import {createMatchTeams} from '../utils/matchmaking';
@@ -74,7 +74,7 @@ export async function execute(
 async function handleCreate(
     interaction: ChatInputCommandInteraction,
     db: Database.Database,
-    config: any
+    config: GuildConfig | undefined
 ) {
     const existingMatch = getCurrentMatch(db, interaction.guildId!);
     if (existingMatch) {
@@ -169,7 +169,7 @@ Copy BattleTags to create in-game lobby.`,
 async function handleStart(
     interaction: ChatInputCommandInteraction,
     db: Database.Database,
-    config: any
+    config: GuildConfig | undefined
 ) {
     const match = getCurrentMatch(db, interaction.guildId!);
 
@@ -217,7 +217,8 @@ async function handleStart(
         )) as VoiceChannel;
 
         if (team1VC && team2VC) {
-            for (const participant of participants) {
+            for (let i = 0; i < participants.length; i++) {
+                const participant = participants[i];
                 try {
                     const member = await interaction.guild!.members.fetch(
                         participant.discord_user_id
@@ -232,6 +233,11 @@ async function handleStart(
                         `Failed to move ${participant.discord_user_id}:`,
                         error
                     );
+                }
+
+                // Add delay between moves to prevent rate limiting (except after last move)
+                if (i < participants.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             }
             moveMessage = '\n\nPlayers have been moved to their team voice channels.';

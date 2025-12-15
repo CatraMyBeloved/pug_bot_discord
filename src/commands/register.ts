@@ -1,48 +1,21 @@
 import {ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder} from 'discord.js';
 import Database from 'better-sqlite3';
-import {isPlayerRegistered, registerPlayer} from '../database/players';
+import {isPlayerRegistered} from '../database/players';
+import {registrationState} from '../wizard/RegistrationState';
+import {buildBattlenetEmbed, buildBattlenetButtons} from '../wizard/registrationUI';
 
 export const data = new SlashCommandBuilder()
     .setName('register')
-    .setDescription('Register for PUG matches')
-    .addStringOption(option =>
-        option
-            .setName('battlenet')
-            .setDescription('Your BattleNet ID (e.g., Player#1234)')
-            .setRequired(true)
-    )
-    .addStringOption(option =>
-        option
-            .setName('roles')
-            .setDescription('Roles you can play (select multiple, separated by commas: tank,dps,support)')
-            .setRequired(true)
-    )
-    .addStringOption(option =>
-        option
-            .setName('rank')
-            .setDescription('Your current competitive rank')
-            .setRequired(true)
-            .addChoices(
-                {name: 'Bronze', value: 'bronze'},
-                {name: 'Silver', value: 'silver'},
-                {name: 'Gold', value: 'gold'},
-                {name: 'Platinum', value: 'platinum'},
-                {name: 'Diamond', value: 'diamond'},
-                {name: 'Master', value: 'master'},
-                {name: 'Grandmaster', value: 'grandmaster'},
-            )
-    );
+    .setDescription('Register for PUG matches using an interactive wizard');
 
 export async function execute(
     interaction: ChatInputCommandInteraction,
     db: Database.Database
 ) {
-    const discordUserId = interaction.user.id;
-    const battlenet = interaction.options.getString('battlenet', true);
-    const rolesInput = interaction.options.getString('roles', true);
-    const rank = interaction.options.getString('rank', true);
+    const userId = interaction.user.id;
 
-    if (isPlayerRegistered(db, discordUserId)) {
+    // Check if user is already registered
+    if (isPlayerRegistered(db, userId)) {
         await interaction.reply({
             content: 'You are already registered! Use `/update` to change your info.',
             flags: MessageFlags.Ephemeral,
@@ -50,39 +23,33 @@ export async function execute(
         return;
     }
 
-    const validRoles = ['tank', 'dps', 'support'];
-    const roles = rolesInput
-        .toLowerCase()
-        .split(',')
-        .map(r => r.trim())
-        .filter(r => validRoles.includes(r));
-
-    const uniqueRoles = [...new Set(roles)];
-
-    if (uniqueRoles.length === 0) {
+    // Check if user already has an active registration session
+    const existingSession = registrationState.getSession(userId);
+    if (existingSession) {
         await interaction.reply({
-            content: 'Invalid roles! Please use: tank, dps, or support (separated by commas).\nExample: `tank,dps` or `support` or `tank,dps,support`',
+            content: 'You already have an active registration in progress. Please complete or cancel it first.',
             flags: MessageFlags.Ephemeral,
         });
         return;
     }
 
-    try {
-        registerPlayer(db, discordUserId, battlenet, uniqueRoles, rank);
+    // Create new registration session
+    const session = registrationState.createSession(userId, interaction.channelId);
 
-        await interaction.reply({
-            content: `Registered successfully!
+    // Start cleanup timer if not already running
+    registrationState.startCleanupTimer();
 
-**BattleNet:** ${battlenet}
-**Roles:** ${uniqueRoles.join(', ')}
-**Rank:** ${rank}`,
-            flags: MessageFlags.Ephemeral,
-        });
-    } catch (error) {
-        console.error('Registration error:', error);
-        await interaction.reply({
-            content: 'Registration failed. Please try again.',
-            flags: MessageFlags.Ephemeral,
-        });
-    }
+    // Build and send initial wizard UI (Step 1: Battle.net ID)
+    const embed = buildBattlenetEmbed(session);
+    const buttons = buildBattlenetButtons();
+
+    await interaction.reply({
+        embeds: [embed],
+        components: buttons,
+        flags: MessageFlags.Ephemeral,
+    });
+
+    // Store message ID for potential updates
+    const message = await interaction.fetchReply();
+    registrationState.updateSession(userId, {messageId: message.id});
 }

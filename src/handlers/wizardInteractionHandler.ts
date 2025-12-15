@@ -1,6 +1,6 @@
 import {ButtonInteraction, ChannelSelectMenuInteraction, MessageFlags, RoleSelectMenuInteraction} from 'discord.js';
 import Database from 'better-sqlite3';
-import {wizardState} from '../wizard/WizardState';
+import {wizardState, WizardSession} from '../wizard/WizardState';
 import {
     buildAnnouncementsComponents,
     buildAnnouncementsEmbed,
@@ -83,7 +83,7 @@ export async function handleWizardButton(
 
 async function handleNavigate(
     interaction: ButtonInteraction,
-    session: any,
+    session: WizardSession,
     category: string
 ) {
     session.currentCategory = category;
@@ -124,7 +124,7 @@ async function handleNavigate(
 
 async function handleToggle(
     interaction: ButtonInteraction,
-    session: any,
+    session: WizardSession,
     setting: string,
     db: Database.Database
 ) {
@@ -148,7 +148,7 @@ async function handleToggle(
 
 async function handleBack(
     interaction: ButtonInteraction,
-    session: any
+    session: WizardSession
 ) {
     session.currentCategory = null;
 
@@ -164,7 +164,7 @@ async function handleBack(
 
 async function handleReview(
     interaction: ButtonInteraction,
-    session: any
+    session: WizardSession
 ) {
     // Check if wizard is complete
     const incomplete = wizardState.getIncompleteCategories(session.userId, session.guildId);
@@ -202,7 +202,7 @@ async function handleReview(
 
 async function handleConfirm(
     interaction: ButtonInteraction,
-    session: any,
+    session: WizardSession,
     db: Database.Database
 ) {
     try {
@@ -241,7 +241,7 @@ async function handleConfirm(
 
 async function handleCancel(
     interaction: ButtonInteraction,
-    session: any
+    session: WizardSession
 ) {
     wizardState.deleteSession(session.userId, session.guildId);
 
@@ -307,7 +307,7 @@ export async function handleWizardSelectMenu(
 
 async function handleChannelSelect(
     interaction: ChannelSelectMenuInteraction,
-    session: any,
+    session: WizardSession,
     settingKey: string,
     displayName: string
 ) {
@@ -329,7 +329,7 @@ async function handleChannelSelect(
 
 async function handleRoleSelect(
     interaction: RoleSelectMenuInteraction,
-    session: any,
+    session: WizardSession,
     settingKey: string,
     displayName: string
 ) {
@@ -351,7 +351,7 @@ async function handleRoleSelect(
 
 async function handleLeaderRolesSelect(
     interaction: RoleSelectMenuInteraction,
-    session: any
+    session: WizardSession
 ) {
     const roleIds = interaction.values;
 
@@ -372,7 +372,7 @@ async function handleLeaderRolesSelect(
 
 async function refreshView(
     interaction: ChannelSelectMenuInteraction | RoleSelectMenuInteraction,
-    session: any
+    session: WizardSession
 ) {
     const category = session.currentCategory;
     if (!category) return;

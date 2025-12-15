@@ -19,6 +19,7 @@ import * as testCommand from './commands/test';
 import {handleCancelpugButton} from './handlers/cancelpugHandlers';
 import {handleWizardButton, handleWizardSelectMenu} from './handlers/wizardInteractionHandler';
 import {handleSetupResetButton} from './handlers/setupResetHandlers';
+import {handleRegistrationButton, handleRegistrationModal} from './handlers/registrationInteractionHandler';
 
 dotenv.config();
 
@@ -32,6 +33,24 @@ const client = new Client({
 
 const db = initDatabase();
 
+// Command registry map
+const commands = new Map([
+    ['register', registerCommand],
+    ['setup', setupCommand],
+    ['setup-reset', setupResetCommand],
+    ['profile', profileCommand],
+    ['leaderboard', leaderboardCommand],
+    ['update', updateCommand],
+    ['roster', rosterCommand],
+    ['schedulepug', schedulepugCommand],
+    ['listpugs', listpugsCommand],
+    ['cancelpug', cancelpugCommand],
+    ['makepug', makepugCommand],
+    ['match', matchCommand],
+    ['help', helpCommand],
+    ['test', testCommand],
+]);
+
 client.once('clientReady', () => {
     console.log(`Logged in as ${client.user?.tag}`);
     initializeScheduler(client, db);
@@ -39,8 +58,9 @@ client.once('clientReady', () => {
 
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isAutocomplete()) {
-        if (interaction.commandName === 'cancelpug') {
-            await cancelpugCommand.autocomplete(interaction, db);
+        const command = commands.get(interaction.commandName);
+        if (command?.autocomplete) {
+            await command.autocomplete(interaction, db);
         }
         return;
     }
@@ -62,6 +82,11 @@ client.on('interactionCreate', async (interaction) => {
 
         if (customId.startsWith('wizard:')) {
             await handleWizardButton(interaction, db);
+            return;
+        }
+
+        if (customId.startsWith('register:')) {
+            await handleRegistrationButton(interaction, db);
             return;
         }
 
@@ -90,49 +115,30 @@ client.on('interactionCreate', async (interaction) => {
         return;
     }
 
+    if (interaction.isModalSubmit()) {
+        // Handle modal submissions
+        const customId = interaction.customId;
+
+        if (customId.startsWith('register:')) {
+            await handleRegistrationModal(interaction, db);
+            return;
+        }
+
+        // Unknown modal
+        await interaction.reply({
+            content: 'Unknown modal interaction.',
+            flags: 64
+        });
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.commandName === 'register') {
-        await registerCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'setup') {
-        await setupCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'setup-reset') {
-        await setupResetCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'profile') {
-        await profileCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'leaderboard') {
-        await leaderboardCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'update') {
-        await updateCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'roster') {
-        await rosterCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'schedulepug') {
-        await schedulepugCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'listpugs') {
-        await listpugsCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'cancelpug') {
-        await cancelpugCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'makepug') {
-        await makepugCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'match') {
-        await matchCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'help') {
-        await helpCommand.execute(interaction, db);
-    }
-    if (interaction.commandName === 'test') {
-        await testCommand.execute(interaction, db);
+    const command = commands.get(interaction.commandName);
+    if (command) {
+        await command.execute(interaction, db);
+    } else {
+        console.warn(`Unknown command: ${interaction.commandName}`);
     }
 });
 

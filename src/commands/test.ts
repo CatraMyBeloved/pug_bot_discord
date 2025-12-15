@@ -8,7 +8,7 @@ import {
     VoiceChannel,
 } from 'discord.js';
 import Database from 'better-sqlite3';
-import {getGuildConfig, getPugLeaderRoles} from '../database/config';
+import {getGuildConfig, getPugLeaderRoles, GuildConfig} from '../database/config';
 import {hasMatchPermission} from '../utils/permissions';
 
 export const data = new SlashCommandBuilder()
@@ -135,7 +135,7 @@ export async function execute(
     }
 }
 
-function testConfig(config: any): TestResult {
+function testConfig(config: GuildConfig | undefined): TestResult {
     if (!config) {
         return {
             name: 'Guild Config',
@@ -168,7 +168,7 @@ function testConfig(config: any): TestResult {
 
 async function testFetchChannels(
     interaction: ChatInputCommandInteraction,
-    config: any
+    config: GuildConfig | undefined
 ): Promise<TestResult[]> {
     const results: TestResult[] = [];
 
@@ -318,7 +318,7 @@ function testVoiceState(member: GuildMember): TestResult {
 
 async function testBotPermissions(
     interaction: ChatInputCommandInteraction,
-    config: any
+    config: GuildConfig | undefined
 ): Promise<TestResult[]> {
     const results: TestResult[] = [];
     const botMember = interaction.guild!.members.me;
@@ -373,7 +373,7 @@ async function testBotPermissions(
 
 async function testMoveSequence(
     interaction: ChatInputCommandInteraction,
-    config: any,
+    config: GuildConfig | undefined,
     member: GuildMember
 ): Promise<TestResult[]> {
     const results: TestResult[] = [];

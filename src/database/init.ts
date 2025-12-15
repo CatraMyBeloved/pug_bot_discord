@@ -99,13 +99,15 @@ export function initDatabase(): Database.Database {
         );
         CREATE TABLE IF NOT EXISTS guild_config
         (
-            guild_id    TEXT PRIMARY KEY,
-            main_vc_id  TEXT,
-            team1_vc_id TEXT,
-            team2_vc_id TEXT,
-            pug_role_id TEXT,
-            auto_move   INTEGER NOT NULL DEFAULT 1,
-            updated_at  DATETIME         DEFAULT CURRENT_TIMESTAMP
+            guild_id                TEXT PRIMARY KEY,
+            main_vc_id              TEXT,
+            team1_vc_id             TEXT,
+            team2_vc_id             TEXT,
+            pug_role_id             TEXT,
+            pug_leader_role_id      TEXT,
+            announcement_channel_id TEXT,
+            auto_move               INTEGER NOT NULL DEFAULT 1,
+            updated_at              DATETIME         DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS match_participants
@@ -184,18 +186,6 @@ export function initDatabase(): Database.Database {
             created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     `);
-
-    try {
-        db.exec(`ALTER TABLE guild_config
-            ADD COLUMN announcement_channel_id TEXT`);
-    } catch (error) {
-    }
-
-    try {
-        db.exec(`ALTER TABLE guild_config
-            ADD COLUMN pug_leader_role_id TEXT`);
-    } catch (error) {
-    }
 
     console.log('Database initialized');
     return db;

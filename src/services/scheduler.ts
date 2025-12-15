@@ -1,7 +1,7 @@
 import {Client} from 'discord.js';
 import Database from 'better-sqlite3';
 import cron from 'node-cron';
-import {getPugsNeedingReminders, markReminderSent, updatePugState} from '../database/scheduled_pugs';
+import {getPugsNeedingReminders, markReminderSent, updatePugState, ScheduledPug} from '../database/scheduled_pugs';
 import {getGuildConfig} from '../database/config';
 
 export function initializeScheduler(client: Client, db: Database.Database): void {
@@ -48,7 +48,7 @@ async function checkAndSendReminders(client: Client, db: Database.Database): Pro
 async function sendReminder(
     client: Client,
     db: Database.Database,
-    pug: any,
+    pug: ScheduledPug,
     reminderType: '24h' | '1h'
 ): Promise<void> {
     try {
