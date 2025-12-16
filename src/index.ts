@@ -17,6 +17,7 @@ import * as makepugCommand from './commands/makepug';
 import * as matchCommand from './commands/match';
 import * as helpCommand from './commands/help';
 import * as testCommand from './commands/test';
+import * as aboutCommand from './commands/about';
 import {handleCancelpugButton} from './handlers/cancelpugHandlers';
 import {handleWizardButton, handleWizardSelectMenu} from './handlers/wizardInteractionHandler';
 import {handleSetupResetButton} from './handlers/setupResetHandlers';
@@ -57,6 +58,7 @@ const commands = new Map<string, Command>([
     ['match', matchCommand],
     ['help', helpCommand],
     ['test', testCommand],
+    ['about', aboutCommand],
 ]);
 
 client.once('clientReady', () => {

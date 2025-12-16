@@ -15,7 +15,8 @@ export const data = new SlashCommandBuilder()
                 {name: 'PUG Leader Commands', value: 'leader'},
                 {name: 'Admin Commands', value: 'admin'},
                 {name: 'How Matchmaking Works', value: 'matchmaking'},
-                {name: 'Scheduled PUGs', value: 'scheduled'}
+                {name: 'Scheduled PUGs', value: 'scheduled'},
+                {name: 'Leaderboard', value: 'leaderboard'}
             )
     );
 
@@ -46,6 +47,9 @@ export async function execute(
         case 'scheduled':
             content = getScheduledContent();
             break;
+        case 'leaderboard':
+            content = getLeaderboardContent();
+            break;
         default:
             content = getOverviewContent();
             break;
@@ -70,6 +74,7 @@ Use \`/help topic:<name>\` to learn more:
 • **Admin Commands** - Server configuration
 • **How Matchmaking Works** - Team selection algorithm
 • **Scheduled PUGs** - Schedule matches in advance
+• **Leaderboard** - View top players
 
 **Need Help?**
 Contact your server administrators if you have questions!`;
@@ -89,19 +94,15 @@ function getStartContent(): string {
 3. **Wait for a PUG leader** to create teams with \`/makepug create\`
 
 **For Admins (First Time Setup):**
-1. Configure voice channels:
-   • \`/setup mainvc\` - Main lobby channel
-   • \`/setup team1vc\` - Team 1 channel
-   • \`/setup team2vc\` - Team 2 channel
+1. **Run the Setup Wizard:**
+   • \`/setup\` - Launches an interactive wizard to configure everything
 
-2. Set up roles:
-   • \`/setup pugrole\` - Role for PUG participants
-   • \`/setup pugleader\` - Role allowed to create matches
+2. **Follow the Steps:**
+   • Select voice channels (Main, Team 1, Team 2)
+   • Configure roles (PUG Participant, PUG Leader)
+   • Set announcement channel
 
-3. Set announcement channel:
-   • \`/setup announcementchannel\` - For scheduled PUG reminders
-
-**That's it!** You're ready to start organizing PUGs.`;
+**That's it!** The wizard guides you through the entire process.`;
 }
 
 function getPlayerContent(): string {
@@ -119,6 +120,11 @@ Update your registration info (BattleNet ID, roles, or rank).
 **\`/profile\`**
 View your PUG stats and registration info.
 • Shows your roles, rank, and win/loss record
+
+**\`/leaderboard\`**
+View the top players ranked by performance.
+• \`limit\`: Number of players to show (default: 10)
+• \`mingames\`: Minimum games required (default: 3)
 
 **\`/roster\`**
 See all registered players in the server.
@@ -170,25 +176,22 @@ function getAdminContent(): string {
 
 *Requires Administrator permission*
 
-**Voice Channel Setup:**
-• \`/setup mainvc\` - Set the main lobby voice channel
-• \`/setup team1vc\` - Set Team 1 voice channel
-• \`/setup team2vc\` - Set Team 2 voice channel
+**Configuration:**
+• \`/setup\` - Interactive wizard to configure the bot
+  - Set voice channels (Main, Team 1, Team 2)
+  - Configure roles and permissions
+  - Set announcement channel
+  - Toggle auto-move functionality
 
-**Role Setup:**
-• \`/setup pugrole\` - Role for players who want to participate in PUGs
-• \`/setup pugleader\` - Role allowed to create and manage matches
+**Maintenance:**
+• \`/setup-reset\` - Reset ALL bot configuration for the server
+  - **Warning:** This cannot be undone!
 
-**Channel Setup:**
-• \`/setup announcementchannel\` - Channel for PUG reminders and announcements
-
-**Settings:**
-• \`/setup automove\` - Toggle automatic player movement to team VCs
-  - When enabled: Players are moved to team VCs when match starts
-  - When disabled: Players manually join team VCs
-
-**View Configuration:**
-• \`/setup view\` - See current bot configuration
+**Troubleshooting:**
+• \`/test\` - Test bot functionality
+  - \`all\`: Run all tests
+  - \`read\`: Test reading voice channel members
+  - \`move\`: Test moving yourself through voice channels
 
 **Schedule PUGs:**
 • \`/schedulepug\` - Schedule a PUG match for a future time
@@ -269,4 +272,30 @@ Use \`/schedulepug\` (Admin only):
 • Discord shows times in each user's local timezone
 • Must schedule at least 2 hours in advance
 • Requires announcement channel configuration (\`/setup announcementchannel\`)`;
+}
+
+function getLeaderboardContent(): string {
+    return `**Leaderboard**
+
+View the top performing players in the server!
+
+**Command:**
+\`/leaderboard\`
+
+**Options:**
+• \`limit\`: Number of players to display (default: 10, max: 25)
+• \`mingames\`: Minimum games played to qualify (default: 3)
+
+**Ranking System:**
+• Players are ranked by **Skill Rating (SR)**
+• SR is calculated based on wins, losses, and individual performance
+• Win rate is also displayed for reference
+
+**Stats Displayed:**
+• Rank (🥇, 🥈, 🥉, etc.)
+• BattleTag
+• SR (Skill Rating)
+• Win/Loss Record
+• Win Percentage
+• Total Games Played`;
 }

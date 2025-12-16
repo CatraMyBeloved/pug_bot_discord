@@ -14,6 +14,7 @@ import {data as makepugCommand} from './commands/makepug';
 import {data as matchCommand} from './commands/match';
 import {data as helpCommand} from './commands/help';
 import {data as testCommand} from './commands/test';
+import {data as aboutCommand} from './commands/about';
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ const commands = [
     matchCommand.toJSON(),
     helpCommand.toJSON(),
     testCommand.toJSON(),
+    aboutCommand.toJSON(),
 ];
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
