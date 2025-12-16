@@ -5,25 +5,27 @@ automated match management.
 
 ## Capabilities
 
-- Player registration with multi-role support (tank, dps, support)
+- Interactive player registration wizard with multi-role support (tank, dps, support)
 - Smart player selection prioritizing those who haven't played recently
+- TrueSkill™ rating system for accurate player skill tracking
 - Rank-based team balancing for fair 5v5 matches
 - Automatic voice channel assignment for teams
 - Match tracking with win/loss statistics
+- Leaderboard system to track top players by Skill Rating (SR)
 - Scheduled PUG events with 24-hour and 1-hour reminders
 - Flexible permission system with configurable PUG Leader roles
 
 ## Usage Flow
 
 1. **Server Configuration**: Admin configures voice channels and roles using `/setup` commands
-2. **Player Registration**: Players register with `/register <battletag> <roles> <rank>`
+2. **Player Registration**: Players register using the interactive `/register` command
 3. **Match Creation**: Admin runs `/makepug create` to select 10 players and create balanced teams
 4. **Match Start**: Admin runs `/makepug start` to move players to team voice channels
 5. **Match Completion**: Admin runs `/match finish <team>` to record results and update statistics
 
 ## Tech Stack
 
-- Discord.js v14, TypeScript, better-sqlite3, node-cron
+- Discord.js v14, TypeScript, better-sqlite3, node-cron, ts-trueskill
 
 ## Setup
 
@@ -91,8 +93,9 @@ Run these commands in your Discord server:
 
 **Players:**
 
-- `/register <battletag> <roles> <rank>` - Register for PUGs
+- `/register` - Start the interactive registration wizard
 - `/update [battlenet] [roles] [rank]` - Update your info
+- `/leaderboard` - View top players by Skill Rating (SR)
 - `/profile [user]` - View player stats
 - `/roster` - Check voice channel readiness
 
