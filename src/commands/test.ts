@@ -74,7 +74,7 @@ export async function execute(
         const configResult = testConfig(config);
         results.push(configResult);
 
-        if (!configResult.passed) {
+        if (!configResult.passed || !config) {
             await sendResults(interaction, results, 'Config not set up');
             return;
         }
@@ -83,7 +83,7 @@ export async function execute(
         results.push(...channelResults);
 
         const mainVCResult = channelResults.find((r) => r.name === 'Fetch Main VC');
-        if (!mainVCResult?.passed || !config?.main_vc_id) {
+        if (!mainVCResult?.passed || !config.main_vc_id) {
             await sendResults(interaction, results, 'Cannot fetch main VC');
             return;
         }
@@ -168,30 +168,38 @@ function testConfig(config: GuildConfig | undefined): TestResult {
 
 async function testFetchChannels(
     interaction: ChatInputCommandInteraction,
-    config: GuildConfig | undefined
+    config: GuildConfig
 ): Promise<TestResult[]> {
     const results: TestResult[] = [];
 
-    try {
-        const mainVC = await interaction.guild!.channels.fetch(config.main_vc_id);
-        if (mainVC && mainVC.isVoiceBased()) {
-            results.push({
-                name: 'Fetch Main VC',
-                passed: true,
-                details: `Found: ${mainVC.name}`,
-            });
-        } else {
+    if (config.main_vc_id) {
+        try {
+            const mainVC = await interaction.guild!.channels.fetch(config.main_vc_id);
+            if (mainVC && mainVC.isVoiceBased()) {
+                results.push({
+                    name: 'Fetch Main VC',
+                    passed: true,
+                    details: `Found: ${mainVC.name}`,
+                });
+            } else {
+                results.push({
+                    name: 'Fetch Main VC',
+                    passed: false,
+                    details: 'Channel exists but is not a voice channel',
+                });
+            }
+        } catch (error) {
             results.push({
                 name: 'Fetch Main VC',
                 passed: false,
-                details: 'Channel exists but is not a voice channel',
+                details: `Failed to fetch: ${error instanceof Error ? error.message : 'Unknown error'}`,
             });
         }
-    } catch (error) {
+    } else {
         results.push({
             name: 'Fetch Main VC',
             passed: false,
-            details: `Failed to fetch: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            details: 'Not configured',
         });
     }
 
@@ -318,7 +326,7 @@ function testVoiceState(member: GuildMember): TestResult {
 
 async function testBotPermissions(
     interaction: ChatInputCommandInteraction,
-    config: GuildConfig | undefined
+    config: GuildConfig
 ): Promise<TestResult[]> {
     const results: TestResult[] = [];
     const botMember = interaction.guild!.members.me;
@@ -373,7 +381,7 @@ async function testBotPermissions(
 
 async function testMoveSequence(
     interaction: ChatInputCommandInteraction,
-    config: GuildConfig | undefined,
+    config: GuildConfig,
     member: GuildMember
 ): Promise<TestResult[]> {
     const results: TestResult[] = [];
@@ -384,6 +392,15 @@ async function testMoveSequence(
             name: 'Move Sequence',
             passed: false,
             details: 'User left voice channel before move test',
+        });
+        return results;
+    }
+
+    if (!config.main_vc_id || !config.team1_vc_id || !config.team2_vc_id) {
+         results.push({
+            name: 'Move Sequence',
+            passed: false,
+            details: 'One or more VCs not configured',
         });
         return results;
     }

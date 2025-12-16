@@ -1,6 +1,6 @@
 import {ButtonInteraction, ChannelSelectMenuInteraction, MessageFlags, RoleSelectMenuInteraction} from 'discord.js';
 import Database from 'better-sqlite3';
-import {wizardState, WizardSession} from '../wizard/WizardState';
+import {wizardState, WizardSession, WizardCategory} from '../wizard/WizardState';
 import {
     buildAnnouncementsComponents,
     buildAnnouncementsEmbed,
@@ -86,7 +86,17 @@ async function handleNavigate(
     session: WizardSession,
     category: string
 ) {
-    session.currentCategory = category;
+    // Validate that category is a valid WizardCategory
+    const validCategories: WizardCategory[] = ['voice_channels', 'roles', 'announcements', 'settings'];
+    if (!validCategories.includes(category as WizardCategory)) {
+        await interaction.reply({
+            content: 'Invalid category.',
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    session.currentCategory = category as WizardCategory;
 
     let embed, components;
 

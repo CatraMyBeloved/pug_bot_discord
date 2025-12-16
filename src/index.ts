@@ -1,5 +1,6 @@
-import {Client, GatewayIntentBits} from 'discord.js';
+import {Client, GatewayIntentBits, SlashCommandBuilder, SlashCommandSubcommandsOnlyBuilder, SlashCommandOptionsOnlyBuilder, ChatInputCommandInteraction, AutocompleteInteraction} from 'discord.js';
 import dotenv from 'dotenv';
+import Database from 'better-sqlite3';
 import {initDatabase} from './database/init';
 import {initializeScheduler} from './services/scheduler';
 import * as registerCommand from './commands/register';
@@ -20,6 +21,7 @@ import {handleCancelpugButton} from './handlers/cancelpugHandlers';
 import {handleWizardButton, handleWizardSelectMenu} from './handlers/wizardInteractionHandler';
 import {handleSetupResetButton} from './handlers/setupResetHandlers';
 import {handleRegistrationButton, handleRegistrationModal} from './handlers/registrationInteractionHandler';
+import {handleUpdateButton, handleUpdateModal} from './handlers/updateInteractionHandler';
 
 dotenv.config();
 
@@ -33,8 +35,14 @@ const client = new Client({
 
 const db = initDatabase();
 
+interface Command {
+    data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder;
+    execute: (interaction: ChatInputCommandInteraction, db: Database.Database) => Promise<void>;
+    autocomplete?: (interaction: AutocompleteInteraction, db: Database.Database) => Promise<void>;
+}
+
 // Command registry map
-const commands = new Map([
+const commands = new Map<string, Command>([
     ['register', registerCommand],
     ['setup', setupCommand],
     ['setup-reset', setupResetCommand],
@@ -90,6 +98,11 @@ client.on('interactionCreate', async (interaction) => {
             return;
         }
 
+        if (customId.startsWith('update:')) {
+            await handleUpdateButton(interaction, db);
+            return;
+        }
+
         // Unknown button
         await interaction.reply({
             content: 'Unknown button interaction.',
@@ -121,6 +134,11 @@ client.on('interactionCreate', async (interaction) => {
 
         if (customId.startsWith('register:')) {
             await handleRegistrationModal(interaction, db);
+            return;
+        }
+
+        if (customId.startsWith('update:')) {
+            await handleUpdateModal(interaction, db);
             return;
         }
 

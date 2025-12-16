@@ -1,45 +1,23 @@
 import {ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder} from 'discord.js';
 import Database from 'better-sqlite3';
-import {isPlayerRegistered, updatePlayer} from '../database/players';
+import {getPlayer} from '../database/players';
+import {updateState} from '../wizard/UpdateState';
+import {buildUpdateBattlenetEmbed, buildUpdateBattlenetButtons} from '../wizard/updateUI';
+import {Role, Rank} from '../types/matchmaking';
 
 export const data = new SlashCommandBuilder()
     .setName('update')
-    .setDescription('Update your player information')
-    .addStringOption(option =>
-        option
-            .setName('battlenet')
-            .setDescription('Your BattleNet ID (e.g., Player#1234)')
-            .setRequired(false)
-    )
-    .addStringOption(option =>
-        option
-            .setName('roles')
-            .setDescription('Roles you can play (separated by commas: tank,dps,support)')
-            .setRequired(false)
-    )
-    .addStringOption(option =>
-        option
-            .setName('rank')
-            .setDescription('Your current competitive rank')
-            .setRequired(false)
-            .addChoices(
-                {name: 'Bronze', value: 'bronze'},
-                {name: 'Silver', value: 'silver'},
-                {name: 'Gold', value: 'gold'},
-                {name: 'Platinum', value: 'platinum'},
-                {name: 'Diamond', value: 'diamond'},
-                {name: 'Master', value: 'master'},
-                {name: 'Grandmaster', value: 'grandmaster'},
-            )
-    );
+    .setDescription('Update your player information using an interactive wizard');
 
 export async function execute(
     interaction: ChatInputCommandInteraction,
     db: Database.Database
 ) {
-    const discordUserId = interaction.user.id;
+    const userId = interaction.user.id;
 
-    if (!isPlayerRegistered(db, discordUserId)) {
+    // Check if user is registered
+    const player = getPlayer(db, userId);
+    if (!player) {
         await interaction.reply({
             content: 'You are not registered! Use `/register` first.',
             flags: MessageFlags.Ephemeral,
@@ -47,57 +25,41 @@ export async function execute(
         return;
     }
 
-    const battlenet = interaction.options.getString('battlenet');
-    const rolesInput = interaction.options.getString('roles');
-    const rank = interaction.options.getString('rank');
-
-    if (!battlenet && !rolesInput && !rank) {
+    // Check if user already has an active update session
+    const existingSession = updateState.getSession(userId);
+    if (existingSession) {
         await interaction.reply({
-            content: 'Please provide at least one field to update.',
+            content: 'You already have an active update in progress. Please complete or cancel it first.',
             flags: MessageFlags.Ephemeral,
         });
         return;
     }
 
-    let roles: string[] | undefined = undefined;
-    if (rolesInput) {
-        const validRoles = ['tank', 'dps', 'support'];
-        const parsedRoles = rolesInput
-            .toLowerCase()
-            .split(',')
-            .map(r => r.trim())
-            .filter(r => validRoles.includes(r));
+    // Create new update session with current data
+    // Normalize roles to match Role type
+    const currentRoles: Role[] = (player.roles || []).map(r => r.toLowerCase() as Role);
+    const currentRank: Rank | null = player.rank ? (player.rank.toLowerCase() as Rank) : null;
 
-        roles = [...new Set(parsedRoles)];
+    const session = updateState.createSession(userId, interaction.channelId, {
+        battlenetId: player.battlenet_id,
+        selectedRoles: currentRoles,
+        selectedRank: currentRank
+    });
 
-        if (roles.length === 0) {
-            await interaction.reply({
-                content: 'Invalid roles! Please use: tank, dps, or support (separated by commas).\nExample: `tank,dps` or `support` or `tank,dps,support`',
-                flags: MessageFlags.Ephemeral,
-            });
-            return;
-        }
-    }
+    // Start cleanup timer if not already running
+    updateState.startCleanupTimer();
 
-    try {
-        updatePlayer(db, discordUserId, battlenet ?? undefined, roles, rank ?? undefined);
+    // Build and send initial wizard UI (Step 1: Battle.net ID)
+    const embed = buildUpdateBattlenetEmbed(session);
+    const buttons = buildUpdateBattlenetButtons();
 
-        const updates: string[] = [];
-        if (battlenet) updates.push(`**BattleNet:** ${battlenet}`);
-        if (roles) updates.push(`**Roles:** ${roles.join(', ')}`);
-        if (rank) updates.push(`**Rank:** ${rank}`);
+    await interaction.reply({
+        embeds: [embed],
+        components: buttons,
+        flags: MessageFlags.Ephemeral,
+    });
 
-        await interaction.reply({
-            content: `Profile updated successfully!
-
-${updates.join('\n')}`,
-            flags: MessageFlags.Ephemeral,
-        });
-    } catch (error) {
-        console.error('Update error:', error);
-        await interaction.reply({
-            content: 'Update failed. Please try again.',
-            flags: MessageFlags.Ephemeral,
-        });
-    }
+    // Store message ID for potential updates
+    const message = await interaction.fetchReply();
+    updateState.updateSession(userId, {messageId: message.id});
 }
