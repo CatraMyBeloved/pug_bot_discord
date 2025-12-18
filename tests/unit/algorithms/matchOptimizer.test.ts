@@ -1,7 +1,7 @@
 import { optimizeMatchSelection, combinations, calculateSkillBand, selectBaseTeam, buildCandidatePools, generateCombinations, calculateNormalizationConstants, calculateCost, selectOptimalCombination } from '../../../src/utils/algorithms/matchOptimizer';
 import { PlayerWithRoles, Role, SelectedPlayer, DEFAULT_OPTIMIZER_CONFIG } from '../../../src/types/matchmaking';
 import { InsufficientPlayersError, InsufficientRoleCompositionError } from '../../../src/utils/algorithms/prioritySelection';
-import { balanceTeamsByRank } from '../../../src/utils/algorithms/rankBalancing';
+import { balanceTeamsBySkill } from '../../../src/utils/algorithms/rankBalancing';
 import { createMockPlayer, resetUserIdCounter } from '../../fixtures/players';
 
 describe('matchOptimizer', () => {
@@ -553,7 +553,7 @@ describe('matchOptimizer', () => {
             expect(result.pools.support.map(p => p.userId)).toEqual(['user23', 'user24', 'user25', 'user26', 'user27', 'user28']);
         });
 
-        it('excludes base team players', () => {
+        it('includes all players within skill band (no exclusions)', () => {
             const baseTeam: SelectedPlayer[] = [
                 ...Array(2).fill(null).map(() => ({ ...createMockPlayer({ availableRoles: ['tank'], mu: 25 }), assignedRole: 'tank' as Role, priorityScore: 100 })),
                 ...Array(4).fill(null).map(() => ({ ...createMockPlayer({ availableRoles: ['dps'], mu: 25 }), assignedRole: 'dps' as Role, priorityScore: 100 })),
@@ -574,9 +574,16 @@ describe('matchOptimizer', () => {
 
             const result = buildCandidatePools(allPlayers, baseTeam, band, getPriority);
 
-            // Verify no base team players in pools
+            // Verify base team players CAN be in pools (new behavior)
+            // With adaptive sizing for 29 players, we expect 4/6/6 pools
+            expect(result.pools.tanks.length).toBeLessThanOrEqual(4);
+            expect(result.pools.dps.length).toBeLessThanOrEqual(6);
+            expect(result.pools.support.length).toBeLessThanOrEqual(6);
+
+            // All pooled players should be within band
             [...result.pools.tanks, ...result.pools.dps, ...result.pools.support].forEach(p => {
-                expect(baseTeamIds.has(p.userId)).toBe(false);
+                expect(p.mu).toBeGreaterThanOrEqual(20);
+                expect(p.mu).toBeLessThanOrEqual(30);
             });
         });
 
@@ -633,7 +640,7 @@ describe('matchOptimizer', () => {
             expect(result.pools.tanks).toHaveLength(4);
         });
 
-        it('throws after expansion fails', () => {
+        it('returns available pools even when below target (adaptive behavior)', () => {
             const baseTeam: SelectedPlayer[] = Array(10).fill(null).map(() => ({
                 ...createMockPlayer(),
                 mu: 25,
@@ -643,7 +650,7 @@ describe('matchOptimizer', () => {
 
             const band = { min: 24, max: 26, spread: 2, buffer: 1 };
 
-            // Only 2 tanks even after expansion
+            // Only 2 tanks (below target of 3 for 16 players)
             const allPlayers: PlayerWithRoles[] = [
                 ...Array(2).fill(null).map(() => createMockPlayer({ availableRoles: ['tank'], mu: 25 })),
                 ...Array(7).fill(null).map(() => createMockPlayer({ availableRoles: ['dps'], mu: 25 })),
@@ -652,9 +659,13 @@ describe('matchOptimizer', () => {
 
             const getPriority = jest.fn(() => 100);
 
-            expect(() => {
-                buildCandidatePools(allPlayers, baseTeam, band, getPriority);
-            }).toThrow(InsufficientRoleCompositionError);
+            // Should not throw - returns available pools
+            const result = buildCandidatePools(allPlayers, baseTeam, band, getPriority);
+
+            // Adaptive sizing for 16 players: 4/6/6, but only 2 tanks available
+            expect(result.pools.tanks).toHaveLength(2);
+            expect(result.pools.dps.length).toBeGreaterThanOrEqual(5);
+            expect(result.pools.support.length).toBeGreaterThanOrEqual(5);
         });
     });
 
@@ -859,7 +870,7 @@ describe('matchOptimizer', () => {
                 priorityScore: 50
             }));
 
-            const teams = balanceTeamsByRank(selectedPlayers);
+            const teams = balanceTeamsBySkill(selectedPlayers);
             const selection = {
                 tanks: selectedPlayers.slice(0, 2)as PlayerWithRoles[],
                 dps: selectedPlayers.slice(2, 6)as PlayerWithRoles[],
@@ -894,7 +905,7 @@ describe('matchOptimizer', () => {
                 ...Array(4).fill(null).map(() => ({ ...createMockPlayer({ mu: 25 }), assignedRole: 'support' as Role, priorityScore: 50 }))
             ];
 
-            const teams = balanceTeamsByRank(selectedPlayers);
+            const teams = balanceTeamsBySkill(selectedPlayers);
             const selection = {
                 tanks: selectedPlayers.slice(0, 2) as PlayerWithRoles[],
                 dps: selectedPlayers.slice(2, 6) as PlayerWithRoles[],
@@ -927,7 +938,7 @@ describe('matchOptimizer', () => {
                 ...Array(4).fill(null).map(() => ({ ...createMockPlayer({ mu: 25 }), assignedRole: 'support' as Role, priorityScore: 50 }))
             ];
 
-            const teams = balanceTeamsByRank(selectedPlayers);
+            const teams = balanceTeamsBySkill(selectedPlayers);
             const selection = {
                 tanks: selectedPlayers.slice(0, 2) as PlayerWithRoles[],
                 dps: selectedPlayers.slice(2, 6) as PlayerWithRoles[],
@@ -958,7 +969,7 @@ describe('matchOptimizer', () => {
                 ...Array(4).fill(null).map(() => ({ ...createMockPlayer({ mu: 25 }), assignedRole: 'support' as Role, priorityScore: 50 }))
             ];
 
-            const teams = balanceTeamsByRank(selectedPlayers);
+            const teams = balanceTeamsBySkill(selectedPlayers);
             const selection = {
                 tanks: selectedPlayers.slice(0, 2) as PlayerWithRoles[],
                 dps: selectedPlayers.slice(2, 6) as PlayerWithRoles[],
@@ -984,7 +995,7 @@ describe('matchOptimizer', () => {
                 ...Array(4).fill(null).map(() => ({ ...createMockPlayer({ mu: 25 }), assignedRole: 'support' as Role, priorityScore: 50 }))
             ];
 
-            const teams = balanceTeamsByRank(selectedPlayers);
+            const teams = balanceTeamsBySkill(selectedPlayers);
             const selection = {
                 tanks: selectedPlayers.slice(0, 2)as PlayerWithRoles[],
                 dps: selectedPlayers.slice(2, 6)as PlayerWithRoles[],

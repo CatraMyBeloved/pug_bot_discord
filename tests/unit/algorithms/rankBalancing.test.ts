@@ -1,9 +1,9 @@
 import {beforeEach, describe, expect, it} from '@jest/globals';
-import {balanceTeamsByRank} from '../../../src/utils/algorithms/rankBalancing';
+import {balanceTeamsBySkill} from '../../../src/utils/algorithms/rankBalancing';
 import {Rank, RANK_VALUES} from '../../../src/types/matchmaking';
 import {createSelectedPlayersForBalancing, resetUserIdCounter,} from '../../fixtures/players';
 
-describe('balanceTeamsByRank', () => {
+describe('balanceTeamsBySkill', () => {
     beforeEach(() => {
         resetUserIdCounter();
     });
@@ -12,7 +12,7 @@ describe('balanceTeamsByRank', () => {
         it('creates two teams with 5 players each', () => {
             const players = createSelectedPlayersForBalancing();
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             expect(result.team1).toHaveLength(5);
             expect(result.team2).toHaveLength(5);
@@ -21,7 +21,7 @@ describe('balanceTeamsByRank', () => {
         it('maintains 1-2-2 role composition per team', () => {
             const players = createSelectedPlayersForBalancing();
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             for (const team of [result.team1, result.team2]) {
                 expect(team.filter(p => p.assignedRole === 'tank')).toHaveLength(1);
@@ -37,7 +37,7 @@ describe('balanceTeamsByRank', () => {
                 'gold', 'gold', 'silver', 'bronze'
             ]);
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const team1Rank = result.team1.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
             const team2Rank = result.team2.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
@@ -48,7 +48,7 @@ describe('balanceTeamsByRank', () => {
         it('distributes all original players across teams', () => {
             const players = createSelectedPlayersForBalancing();
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const allPlayerIds = [...result.team1, ...result.team2].map(p => p.userId);
             const originalIds = players.map(p => p.userId);
@@ -63,7 +63,7 @@ describe('balanceTeamsByRank', () => {
         it('preserves player data (rank, assignedRole, priorityScore)', () => {
             const players = createSelectedPlayersForBalancing();
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const allPlayers = [...result.team1, ...result.team2];
             allPlayers.forEach(player => {
@@ -84,7 +84,7 @@ describe('balanceTeamsByRank', () => {
                 'silver', 'silver', 'silver', 'silver'
             ]);
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const team1GMs = result.team1.filter(p => p.rank === 'grandmaster').length;
             const team2GMs = result.team2.filter(p => p.rank === 'grandmaster').length;
@@ -100,7 +100,7 @@ describe('balanceTeamsByRank', () => {
                 'bronze', 'bronze', 'bronze', 'bronze'
             ]);
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             for (const team of [result.team1, result.team2]) {
                 expect(team.filter(p => p.assignedRole === 'tank')).toHaveLength(1);
@@ -114,7 +114,7 @@ describe('balanceTeamsByRank', () => {
                 Array(10).fill('gold') as Rank[]
             );
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const team1Rank = result.team1.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
             const team2Rank = result.team2.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
@@ -129,7 +129,7 @@ describe('balanceTeamsByRank', () => {
                 'bronze', 'bronze', 'bronze', 'bronze'
             ]);
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const team1Rank = result.team1.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
             const team2Rank = result.team2.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
@@ -147,7 +147,7 @@ describe('balanceTeamsByRank', () => {
         it('throws error when not exactly 10 players', () => {
             const players = createSelectedPlayersForBalancing().slice(0, 9);
 
-            expect(() => balanceTeamsByRank(players))
+            expect(() => balanceTeamsBySkill(players))
                 .toThrow('Expected exactly 10 players, got 9');
         });
 
@@ -157,7 +157,7 @@ describe('balanceTeamsByRank', () => {
                 createSelectedPlayersForBalancing()[0],
             ];
 
-            expect(() => balanceTeamsByRank(players))
+            expect(() => balanceTeamsBySkill(players))
                 .toThrow('Expected exactly 10 players, got 11');
         });
 
@@ -174,7 +174,7 @@ describe('balanceTeamsByRank', () => {
             players[8].assignedRole = 'dps';
             players[9].assignedRole = 'dps';
 
-            expect(() => balanceTeamsByRank(players))
+            expect(() => balanceTeamsBySkill(players))
                 .toThrow('Cannot assign player with role');
         });
     });
@@ -187,7 +187,7 @@ describe('balanceTeamsByRank', () => {
                 'silver', 'silver', 'silver', 'silver'
             ]);
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const gmOnTeam1 = result.team1.some(p => p.rank === 'grandmaster');
             const gmOnTeam2 = result.team2.some(p => p.rank === 'grandmaster');
@@ -202,7 +202,7 @@ describe('balanceTeamsByRank', () => {
                 'bronze', 'silver', 'gold', 'platinum', 'master'
             ]);
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const team1Rank = result.team1.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
             const team2Rank = result.team2.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
@@ -217,7 +217,7 @@ describe('balanceTeamsByRank', () => {
                 Array(10).fill('bronze') as Rank[]
             );
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             expect(result.team1).toHaveLength(5);
             expect(result.team2).toHaveLength(5);
@@ -228,7 +228,7 @@ describe('balanceTeamsByRank', () => {
                 Array(10).fill('grandmaster') as Rank[]
             );
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             expect(result.team1).toHaveLength(5);
             expect(result.team2).toHaveLength(5);
@@ -243,7 +243,7 @@ describe('balanceTeamsByRank', () => {
                 'diamond', 'bronze'
             ]);
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const team1Rank = result.team1.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
             const team2Rank = result.team2.reduce((sum, p) => sum + RANK_VALUES[p.rank], 0);
@@ -254,7 +254,7 @@ describe('balanceTeamsByRank', () => {
         it('preserves battlenetId and userId correctly', () => {
             const players = createSelectedPlayersForBalancing();
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             const allPlayers = [...result.team1, ...result.team2];
             allPlayers.forEach(player => {
@@ -269,7 +269,7 @@ describe('balanceTeamsByRank', () => {
         it('never exceeds role limits per team', () => {
             const players = createSelectedPlayersForBalancing();
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             for (const team of [result.team1, result.team2]) {
                 expect(team.filter(p => p.assignedRole === 'tank').length).toBeLessThanOrEqual(1);
@@ -281,7 +281,7 @@ describe('balanceTeamsByRank', () => {
         it('fills all role slots for both teams', () => {
             const players = createSelectedPlayersForBalancing();
 
-            const result = balanceTeamsByRank(players);
+            const result = balanceTeamsBySkill(players);
 
             for (const team of [result.team1, result.team2]) {
                 expect(team.filter(p => p.assignedRole === 'tank')).toHaveLength(1);

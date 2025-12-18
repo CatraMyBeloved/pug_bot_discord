@@ -23,7 +23,7 @@ interface TeamState {
  * @param players - 10 selected players with assigned roles
  * @returns Balanced teams
  */
-export function balanceTeamsByRank(
+export function balanceTeamsBySkill(
     players: SelectedPlayer[]
 ): BalancedTeams {
     if (players.length !== 10) {

@@ -3,11 +3,12 @@ import {
     Role,
     SelectedPlayer,
     BalancedTeams,
+    RoleComposition,
     TEAM_COMPOSITION,
     DEFAULT_OPTIMIZER_CONFIG,
     OptimizerConfig,
 } from '../../types/matchmaking';
-import { balanceTeamsByRank } from './rankBalancing';
+import { balanceTeamsBySkill } from './rankBalancing';
 import {
     InsufficientPlayersError,
     InsufficientRoleCompositionError,
@@ -199,22 +200,42 @@ export function selectBaseTeam(
 }
 
 /**
+ * Calculate adaptive pool sizes based on available player count
+ *
+ * @param playerCount - Total number of available players
+ * @returns Target pool sizes for each role
+ * @internal
+ */
+function calculateAdaptivePoolSizes(playerCount: number): RoleComposition {
+    // Scale pool sizes based on available players
+    if (playerCount <= 12) {
+        // Small pool: minimal extra candidates (11-12 players → 3/5/5 pools)
+        return { tank: 3, dps: 5, support: 5 };
+    } else if (playerCount <= 15) {
+        // Medium pool: moderate extras (13-15 players → 3/5/5)
+        return { tank: 3, dps: 5, support: 5 };
+    } else {
+        // Large pool: full target sizes (16+ players → 4/6/6)
+        return { tank: 4, dps: 6, support: 6 };
+    }
+}
+
+/**
  * Build candidate pools within skill band (ADAPTIVE)
  *
  * Selection criteria:
- * - Within skill band (μ ∈ [band.min, band.max])
- * - Sorted by priority (descending)
- * - Top N per role (up to available): targeting 4 tanks, 6 DPS, 6 support
- * - Uses whatever candidates are available (adaptive to player count)
+ * - Filters ALL players to those within skill band
+ * - Builds pools by role from in-band players
+ * - Uses adaptive pool sizes based on total player count
+ * - No artificial separation of base team vs reserves
  *
- * Fallback: If any pool has zero candidates, expand band by 25% and retry once
+ * Fallback: If pools aren't filled to target size, expand band and retry.
  *
  * @param allPlayers - All available players
- * @param baseTeam - Base team (to exclude from pools)
+ * @param baseTeam - Base team (used for skill band reference only)
  * @param band - Initial skill band
  * @param getPriorityScore - Priority calculator
  * @returns Candidate pools and final band used
- * @throws {InsufficientRoleCompositionError} If any role has zero candidates after expansion
  * @internal Exported for testing
  */
 export function buildCandidatePools(
@@ -223,52 +244,32 @@ export function buildCandidatePools(
     band: SkillBand,
     getPriorityScore: (userId: string, role: Role) => number
 ): PoolBuildResult {
-    const baseTeamUserIds = new Set(baseTeam.map((p) => p.userId));
     const config = DEFAULT_OPTIMIZER_CONFIG;
 
-    // Calculate target pool sizes based on config
-    const targetPoolSizes = {
-        tank: (TEAM_COMPOSITION.tank * 2) + config.poolSizeMultiplier,      // 2 + 2 = 4
-        dps: (TEAM_COMPOSITION.dps * 2) + config.poolSizeMultiplier,        // 4 + 2 = 6
-        support: (TEAM_COMPOSITION.support * 2) + config.poolSizeMultiplier, // 4 + 2 = 6
-    };
+    // Calculate adaptive target pool sizes based on total player count
+    const targetPoolSizes = calculateAdaptivePoolSizes(allPlayers.length);
 
     /**
      * Attempt to build pools with given skill band
-     * Adaptive: uses whatever candidates are available (up to target sizes)
      */
-    function attemptBuild(currentBand: SkillBand): CandidatePools | null {
-        // Filter players within skill band and excluding base team
+    function attemptBuild(currentBand: SkillBand): { pools: CandidatePools; isFull: boolean } {
+        // Filter ALL players to those within skill band (no base/reserve distinction)
         const inBandPlayers = allPlayers.filter(
-            (p) =>
-                !baseTeamUserIds.has(p.userId) &&
-                p.mu >= currentBand.min &&
-                p.mu <= currentBand.max
+            (p) => p.mu >= currentBand.min && p.mu <= currentBand.max
         );
 
-        // Separate by role
-        const tankCandidates = inBandPlayers.filter((p) =>
+        // Separate by role (players can appear in multiple role lists if flex)
+        const tankCandidates = inBandPlayers.filter(p =>
             p.availableRoles.includes('tank')
         );
-        const dpsCandidates = inBandPlayers.filter((p) =>
+        const dpsCandidates = inBandPlayers.filter(p =>
             p.availableRoles.includes('dps')
         );
-        const supportCandidates = inBandPlayers.filter((p) =>
+        const supportCandidates = inBandPlayers.filter(p =>
             p.availableRoles.includes('support')
         );
 
-        // Adaptive approach: use whatever candidates are available
-        // Only fail if we have insufficient candidates to form a valid optimization pool
-        // (i.e. we want to try expanding if we don't hit our targets)
-        if (
-            tankCandidates.length < targetPoolSizes.tank ||
-            dpsCandidates.length < targetPoolSizes.dps ||
-            supportCandidates.length < targetPoolSizes.support
-        ) {
-            return null; // Trigger expansion if we don't meet targets
-        }
-
-        // Select top N by priority for each role (up to available or target, whichever is smaller)
+        // Select top N by priority for each role (up to target or available)
         const tanks = selectTopNByPriority(
             tankCandidates,
             'tank',
@@ -290,15 +291,23 @@ export function buildCandidatePools(
             getPriorityScore
         );
 
-        return { tanks, dps, support };
+        const isFull =
+            tanks.length >= targetPoolSizes.tank &&
+            dps.length >= targetPoolSizes.dps &&
+            support.length >= targetPoolSizes.support;
+
+        return {
+            pools: { tanks, dps, support },
+            isFull
+        };
     }
 
     // First attempt with initial band
-    let pools = attemptBuild(band);
+    let result = attemptBuild(band);
 
-    if (pools) {
+    if (result.isFull) {
         return {
-            pools,
+            pools: result.pools,
             band,
             expandedBand: false,
         };
@@ -312,33 +321,14 @@ export function buildCandidatePools(
         max: band.max + (band.buffer * (config.bandExpansionFactor - 1)),
     };
 
-    pools = attemptBuild(expandedBand);
+    result = attemptBuild(expandedBand);
 
-    if (pools) {
-        return {
-            pools,
-            band: expandedBand,
-            expandedBand: true,
-        };
-    }
-
-    // Still insufficient after expansion - throw error
-    const inBandPlayers = allPlayers.filter(
-        (p) =>
-            !baseTeamUserIds.has(p.userId) &&
-            p.mu >= expandedBand.min &&
-            p.mu <= expandedBand.max
-    );
-
-    const found = {
-        tank: inBandPlayers.filter((p) => p.availableRoles.includes('tank')).length,
-        dps: inBandPlayers.filter((p) => p.availableRoles.includes('dps')).length,
-        support: inBandPlayers.filter((p) => p.availableRoles.includes('support')).length,
+    // Return whatever we found (even if not full), as base team ensures validity
+    return {
+        pools: result.pools,
+        band: expandedBand,
+        expandedBand: true,
     };
-
-    // Since we're adaptive, we only need at least 1 candidate per role
-    const minimumRequired = { tank: 1, dps: 1, support: 1 };
-    throw new InsufficientRoleCompositionError(minimumRequired, found);
 }
 
 /**
@@ -368,6 +358,9 @@ export function* generateCombinations(pools: CandidatePools): Generator<RoleSele
 /**
  * Calculate normalization constants from candidate pools
  *
+ * Handles Infinity priorities by capping at a reasonable maximum
+ * (e.g., 10 years = 3650 days for players who have never played)
+ *
  * @param pools - Candidate pools
  * @param getPriorityScore - Priority calculator
  * @returns Normalization constants for cost calculation
@@ -386,11 +379,21 @@ export function calculateNormalizationConstants(
     const F_max = (maxMu - minMu) * 5;
 
     // P_max: Maximum possible priority penalty
-    // Formula: Sum of all candidate priorities raised to 1.5
-    const P_max = allCandidates.reduce((sum, player) => {
+    // Handle Infinity: cap priority at reasonable maximum (10 years = 3650 days)
+    const MAX_PRIORITY_FOR_CALC = 365 * 10;
+
+    // Deduplicate candidates by userId (since flex players appear in multiple pools)
+    const uniqueCandidates = new Map<string, PlayerWithRoles>();
+    for (const player of allCandidates) {
+        uniqueCandidates.set(player.userId, player);
+    }
+
+    let P_max = 0;
+    for (const player of uniqueCandidates.values()) {
         const priority = getPriorityScore(player.userId, player.availableRoles[0]);
-        return sum + Math.pow(priority, 1.5);
-    }, 0);
+        const cappedPriority = Math.min(priority, MAX_PRIORITY_FOR_CALC);
+        P_max += Math.pow(cappedPriority, 1.5);
+    }
 
     return {
         F_max: F_max || 1, // Prevent division by zero
@@ -408,7 +411,9 @@ export function calculateNormalizationConstants(
  * - P_norm = P / P_max
  * - Cost = 0.2 × F_norm² + 0.8 × P_norm^1.5
  *
- * @param teams - Balanced teams from balanceTeamsByRank()
+ * Handles Infinity priorities by capping at a reasonable maximum
+ *
+ * @param teams - Balanced teams from balanceTeamsBySkill()
  * @param selection - Selected 10 players
  * @param allCandidates - All candidate players with priority scores
  * @param normalization - Normalization constants
@@ -421,13 +426,15 @@ export function calculateCost(
     normalization: NormalizationConstants,
     config: OptimizerConfig = DEFAULT_OPTIMIZER_CONFIG
 ): CostMetrics {
+    const MAX_PRIORITY_FOR_CALC = 365 * 10; // 10 years in days
+
     // Step 1: Calculate Fairness Cost
     // F = |Σteam1.μ - Σteam2.μ|
     const team1MuSum = teams.team1.reduce((sum, p) => sum + p.mu, 0);
     const team2MuSum = teams.team2.reduce((sum, p) => sum + p.mu, 0);
     const fairnessCost = Math.abs(team1MuSum - team2MuSum);
 
-    // Step 2: Calculate Priority Penalty
+    // Step 2: Calculate Priority Penalty with Infinity handling
     // P = Σ(skipped_players.priority^1.5)
     const selectedUserIds = new Set([
         ...selection.tanks.map(p => p.userId),
@@ -438,7 +445,8 @@ export function calculateCost(
     let priorityCost = 0;
     for (const [userId, { priority }] of allCandidates) {
         if (!selectedUserIds.has(userId)) {
-            priorityCost += Math.pow(priority, 1.5);
+            const cappedPriority = Math.min(priority, MAX_PRIORITY_FOR_CALC);
+            priorityCost += Math.pow(cappedPriority, 1.5);
         }
     }
 
@@ -467,7 +475,7 @@ export function calculateCost(
  * Process:
  * 1. For each combination:
  *    a. Assign roles and priority scores
- *    b. Balance teams with balanceTeamsByRank()
+ *    b. Balance teams with balanceTeamsBySkill()
  *    c. Calculate cost metrics
  * 2. Track combination with minimum cost
  * 3. Return optimal selection
@@ -489,6 +497,7 @@ export function selectOptimalCombination(
     let bestTeams: BalancedTeams | null = null;
     let bestMetrics: CostMetrics | null = null;
     let totalEvaluated = 0;
+    let validSetsFound = 0;
 
     // Iterate through all combinations
     for (const selection of generateCombinations(pools)) {
@@ -504,6 +513,8 @@ export function selectOptimalCombination(
         if (uniqueUserIds.size !== 10) {
             continue; // Skip combinations with duplicate players
         }
+
+        validSetsFound++;
 
         // Convert RoleSelection to SelectedPlayer[]
         const selectedPlayers: SelectedPlayer[] = [
@@ -525,7 +536,7 @@ export function selectOptimalCombination(
         ];
 
         // Balance teams
-        const balancedTeams = balanceTeamsByRank(selectedPlayers);
+        const balancedTeams = balanceTeamsBySkill(selectedPlayers);
 
         // Calculate cost
         const metrics = calculateCost(balancedTeams, selection, allCandidates, normalization, config);
@@ -540,9 +551,14 @@ export function selectOptimalCombination(
     }
 
     if (!bestTeams || !bestMetrics || !bestSelection) {
+        // Count unique candidates per role for accurate error reporting
+        const uniqueTanks = new Set(pools.tanks.map(p => p.userId)).size;
+        const uniqueDps = new Set(pools.dps.map(p => p.userId)).size;
+        const uniqueSupport = new Set(pools.support.map(p => p.userId)).size;
+
         throw new InsufficientRoleCompositionError(
             { tank: 2, dps: 4, support: 4 },
-            { tank: 0, dps: 0, support: 0 }
+            { tank: uniqueTanks, dps: uniqueDps, support: uniqueSupport }
         );
     }
 
@@ -638,17 +654,35 @@ export function optimizeMatchSelection(
     }
 
     // Step 7: Build candidate map for cost calculation
+    // Note: Automatically deduplicates since Map keys are unique (userId)
     const allCandidates = new Map<string, { player: PlayerWithRoles; priority: number }>();
     for (const player of [...pools.tanks, ...pools.dps, ...pools.support]) {
-        const priority = getPriorityScore(player.userId, player.availableRoles[0]);
-        allCandidates.set(player.userId, { player, priority });
+        if (!allCandidates.has(player.userId)) {
+            const priority = getPriorityScore(player.userId, player.availableRoles[0]);
+            allCandidates.set(player.userId, { player, priority });
+        }
+    }
+
+    // Step 7b: Check if we have enough unique candidates
+    // With flex players, pools may overlap significantly
+    // Need at least 10 unique players to form valid combinations
+    if (allCandidates.size < 10) {
+        // Not enough unique candidates - return base team
+        return baseTeam;
     }
 
     // Step 8: Calculate normalization constants
     const normalization = calculateNormalizationConstants(pools, getPriorityScore);
 
     // Step 9: Select optimal combination
-    const result = selectOptimalCombination(pools, allCandidates, normalization, config);
-
-    return result.selectedPlayers;
+    try {
+        const result = selectOptimalCombination(pools, allCandidates, normalization, config);
+        return result.selectedPlayers;
+    } catch (error) {
+        // If optimization fails (e.g., no valid combinations found), return base team
+        if (error instanceof InsufficientRoleCompositionError) {
+            return baseTeam;
+        }
+        throw error;
+    }
 }

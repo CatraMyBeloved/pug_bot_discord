@@ -4,7 +4,7 @@ import {getLastPlayed} from '../database/matches';
 import {BalancedTeams, PlayerWithRoles, Rank, Role,} from '../types/matchmaking';
 
 import {selectPlayersByPriority} from './algorithms/prioritySelection';
-import {balanceTeamsByRank} from './algorithms/rankBalancing';
+import {balanceTeamsBySkill} from './algorithms/rankBalancing';
 import {optimizeMatchSelection} from './algorithms/matchOptimizer';
 
 const USE_MATCHMAKING_V2 = true;
@@ -61,9 +61,9 @@ export function createMatchTeams(
     let selectedPlayers;
     if (USE_MATCHMAKING_V2) {
         selectedPlayers = optimizeMatchSelection(playersInVc, getPriorityScore);
-        return balanceTeamsByRank(selectedPlayers);
+        return balanceTeamsBySkill(selectedPlayers);
     } else {
         selectedPlayers = selectPlayersByPriority(playersInVc, getPriorityScore);
-        return balanceTeamsByRank(selectedPlayers);
+        return balanceTeamsBySkill(selectedPlayers);
     }
 }

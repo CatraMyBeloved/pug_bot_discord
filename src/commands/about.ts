@@ -10,12 +10,12 @@ export async function execute(
     db: Database.Database
 ) {
     const embed = new EmbedBuilder()
-        .setTitle('🤖 Overwatch 2 PUG Bot')
+        .setTitle('Overwatch 2 PUG Bot')
         .setDescription('A dedicated bot for organizing and balancing Overwatch 2 Pick-Up Games.')
         .addFields(
             {
                 name: 'Version',
-                value: 'v1.0.0',
+                value: 'v1.0.4',
                 inline: true
             },
             {
