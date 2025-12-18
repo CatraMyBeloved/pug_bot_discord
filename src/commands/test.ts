@@ -172,6 +172,16 @@ async function testFetchChannels(
 ): Promise<TestResult[]> {
     const results: TestResult[] = [];
 
+    // Early config null check for safety
+    if (!config) {
+        return [{
+            name: 'Fetch Channels',
+            passed: false,
+            details: 'Configuration missing'
+        }];
+    }
+
+    // Main VC with try-catch error handling
     if (config.main_vc_id) {
         try {
             const mainVC = await interaction.guild!.channels.fetch(config.main_vc_id);
@@ -349,6 +359,8 @@ async function testBotPermissions(
             : 'Bot lacks Move Members permission',
     });
 
+    if (!config) return results;
+
     const channelsToCheck = [
         {id: config.main_vc_id, name: 'Main VC'},
         {id: config.team1_vc_id, name: 'Team 1 VC'},
@@ -396,11 +408,12 @@ async function testMoveSequence(
         return results;
     }
 
-    if (!config.main_vc_id || !config.team1_vc_id || !config.team2_vc_id) {
+    // Include config null check for extra safety
+    if (!config || !config.main_vc_id || !config.team1_vc_id || !config.team2_vc_id) {
          results.push({
             name: 'Move Sequence',
             passed: false,
-            details: 'One or more VCs not configured',
+            details: 'Voice channels not fully configured',
         });
         return results;
     }

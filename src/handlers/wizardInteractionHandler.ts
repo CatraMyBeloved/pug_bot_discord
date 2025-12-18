@@ -86,7 +86,7 @@ async function handleNavigate(
     session: WizardSession,
     category: string
 ) {
-    // Validate that category is a valid WizardCategory
+    // Validate that category is a valid WizardCategory (type-safe approach)
     const validCategories: WizardCategory[] = ['voice_channels', 'roles', 'announcements', 'settings'];
     if (!validCategories.includes(category as WizardCategory)) {
         await interaction.reply({

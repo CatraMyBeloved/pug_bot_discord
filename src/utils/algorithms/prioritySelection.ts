@@ -30,6 +30,54 @@ export class InsufficientRoleCompositionError extends Error {
 }
 
 /**
+ * Select top N players from a pool by priority for a specific role
+ * Exported for reuse in match optimizer
+ *
+ * @param pool - Available players for this role
+ * @param role - Role to assign
+ * @param count - Number of players to select
+ * @param getPriorityScore - Priority calculator
+ * @param excludeUserIds - Set of user IDs to exclude from selection
+ * @returns Selected players with assigned role and priority score
+ */
+export function selectTopNByPriority(
+    pool: PlayerWithRoles[],
+    role: Role,
+    count: number,
+    getPriorityScore: (userId: string, role: Role) => number,
+    excludeUserIds: Set<string> = new Set()
+): SelectedPlayer[] {
+    const availablePlayers = pool.filter(
+        (p) => !excludeUserIds.has(p.userId)
+    );
+
+    if (availablePlayers.length < count) {
+        return availablePlayers.map((player) => ({
+            ...player,
+            assignedRole: role,
+            priorityScore: getPriorityScore(player.userId, role),
+        }));
+    }
+
+    const playersWithScores = availablePlayers.map((player) => ({
+        player,
+        score: getPriorityScore(player.userId, role),
+    }));
+
+    // Shuffle first to break ties randomly, then sort by score
+    const shuffled = playersWithScores.sort(() => Math.random() - 0.5);
+    const sorted = shuffled.sort((a, b) => b.score - a.score);
+
+    const selected = sorted.slice(0, count);
+
+    return selected.map(({ player, score }) => ({
+        ...player,
+        assignedRole: role,
+        priorityScore: score,
+    }));
+}
+
+/**
  * Priority-based player selection algorithm
  *
  * Selects 10 players from the available pool based on priority scores (time since last match).
@@ -76,52 +124,64 @@ export function selectPlayersByPriority(
     const selectedPlayers: SelectedPlayer[] = [];
     const selectedUserIds = new Set<string>();
 
-    /**
-     * Select top N players from a pool for a specific role
-     */
-    function selectFromPool(
-        pool: PlayerWithRoles[],
-        role: Role,
-        count: number
-    ): void {
-        const availablePlayers = pool.filter(
-            (p) => !selectedUserIds.has(p.userId)
-        );
+    // Select tanks first (scarce role)
+    const tanks = selectTopNByPriority(
+        tankPool,
+        'tank',
+        requiredRoles.tank,
+        getPriorityScore,
+        selectedUserIds
+    );
 
-        if (availablePlayers.length < count) {
-            throw new InsufficientRoleCompositionError(
-                requiredRoles,
-                {
-                    tank: role === 'tank' ? availablePlayers.length : requiredRoles.tank,
-                    dps: role === 'dps' ? availablePlayers.length : requiredRoles.dps,
-                    support: role === 'support' ? availablePlayers.length : requiredRoles.support,
-                }
-            );
-        }
-
-        const playersWithScores = availablePlayers.map((player) => ({
-            player,
-            score: getPriorityScore(player.userId, role),
-        }));
-
-        const shuffled = playersWithScores.sort(() => Math.random() - 0.5);
-        const sorted = shuffled.sort((a, b) => b.score - a.score);
-
-        const selected = sorted.slice(0, count);
-
-        for (const {player, score} of selected) {
-            selectedPlayers.push({
-                ...player,
-                assignedRole: role,
-                priorityScore: score,
-            });
-            selectedUserIds.add(player.userId);
-        }
+    if (tanks.length < requiredRoles.tank) {
+        throw new InsufficientRoleCompositionError(requiredRoles, {
+            tank: tanks.length,
+            dps: dpsPool.length,
+            support: supportPool.length,
+        });
     }
 
-    selectFromPool(tankPool, 'tank', requiredRoles.tank);
-    selectFromPool(supportPool, 'support', requiredRoles.support);
-    selectFromPool(dpsPool, 'dps', requiredRoles.dps);
+    selectedPlayers.push(...tanks);
+    tanks.forEach((p) => selectedUserIds.add(p.userId));
+
+    // Select supports second
+    const supports = selectTopNByPriority(
+        supportPool,
+        'support',
+        requiredRoles.support,
+        getPriorityScore,
+        selectedUserIds
+    );
+
+    if (supports.length < requiredRoles.support) {
+        throw new InsufficientRoleCompositionError(requiredRoles, {
+            tank: requiredRoles.tank,
+            dps: dpsPool.length,
+            support: supports.length,
+        });
+    }
+
+    selectedPlayers.push(...supports);
+    supports.forEach((p) => selectedUserIds.add(p.userId));
+
+    // Select DPS last
+    const dps = selectTopNByPriority(
+        dpsPool,
+        'dps',
+        requiredRoles.dps,
+        getPriorityScore,
+        selectedUserIds
+    );
+
+    if (dps.length < requiredRoles.dps) {
+        throw new InsufficientRoleCompositionError(requiredRoles, {
+            tank: requiredRoles.tank,
+            dps: dps.length,
+            support: requiredRoles.support,
+        });
+    }
+
+    selectedPlayers.push(...dps);
 
     return selectedPlayers;
 }

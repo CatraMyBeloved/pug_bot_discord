@@ -1,6 +1,14 @@
-import {Client, GatewayIntentBits, SlashCommandBuilder, SlashCommandSubcommandsOnlyBuilder, SlashCommandOptionsOnlyBuilder, ChatInputCommandInteraction, AutocompleteInteraction} from 'discord.js';
-import dotenv from 'dotenv';
+import {
+    AutocompleteInteraction,
+    ChatInputCommandInteraction,
+    Client,
+    GatewayIntentBits,
+    SlashCommandBuilder,
+    SlashCommandOptionsOnlyBuilder,
+    SlashCommandSubcommandsOnlyBuilder
+} from 'discord.js';
 import Database from 'better-sqlite3';
+import dotenv from 'dotenv';
 import {initDatabase} from './database/init';
 import {initializeScheduler} from './services/scheduler';
 import * as registerCommand from './commands/register';
@@ -36,14 +44,14 @@ const client = new Client({
 
 const db = initDatabase();
 
-interface Command {
-    data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder;
+interface BotCommand {
+    data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
     execute: (interaction: ChatInputCommandInteraction, db: Database.Database) => Promise<void>;
     autocomplete?: (interaction: AutocompleteInteraction, db: Database.Database) => Promise<void>;
 }
 
 // Command registry map
-const commands = new Map<string, Command>([
+const commands = new Map<string, BotCommand>([
     ['register', registerCommand],
     ['setup', setupCommand],
     ['setup-reset', setupResetCommand],

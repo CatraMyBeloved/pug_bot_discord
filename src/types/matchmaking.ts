@@ -89,3 +89,38 @@ export const RANK_VALUES: Record<Rank, number> = {
     master: 6,
     grandmaster: 7,
 };
+
+/**
+ * Configuration for match optimizer (V2 matchmaking)
+ */
+export interface OptimizerConfig {
+    /** Pool size multiplier per role (e.g., 2 → 4 tanks, 6 DPS, 6 support) */
+    poolSizeMultiplier: number;
+
+    /** Skill band buffer multiplier (applied to spread) */
+    skillBandBuffer: number;
+
+    /** Weight for fairness cost (0-1) */
+    fairnessWeight: number;
+
+    /** Weight for priority cost (0-1) */
+    priorityWeight: number;
+
+    /** Band expansion multiplier if insufficient candidates */
+    bandExpansionFactor: number;
+}
+
+/**
+ * Default optimizer configuration
+ * - +2 per role (4 tanks, 6 DPS, 6 support)
+ * - Adaptive buffer = 0.5 × skill spread
+ * - Strongly favor priority: 80% priority, 20% fairness
+ * - Expand band by 25% if insufficient candidates
+ */
+export const DEFAULT_OPTIMIZER_CONFIG: OptimizerConfig = {
+    poolSizeMultiplier: 2,
+    skillBandBuffer: 0.5,
+    fairnessWeight: 0.2,
+    priorityWeight: 0.8,
+    bandExpansionFactor: 1.25,
+};

@@ -5,6 +5,9 @@ import {BalancedTeams, PlayerWithRoles, Rank, Role,} from '../types/matchmaking'
 
 import {selectPlayersByPriority} from './algorithms/prioritySelection';
 import {balanceTeamsByRank} from './algorithms/rankBalancing';
+import {optimizeMatchSelection} from './algorithms/matchOptimizer';
+
+const USE_MATCHMAKING_V2 = true;
 
 /**
  * Create balanced teams from players in voice channel
@@ -54,12 +57,13 @@ export function createMatchTeams(
     };
 
 
-    const selectedPlayers = selectPlayersByPriority(
-        playersInVc,
-        getPriorityScore
-    );
-
-    const balancedTeams = balanceTeamsByRank(selectedPlayers);
-
-    return balancedTeams;
+    // Feature flag: Use V2 optimizer or V1 priority selection
+    let selectedPlayers;
+    if (USE_MATCHMAKING_V2) {
+        selectedPlayers = optimizeMatchSelection(playersInVc, getPriorityScore);
+        return balanceTeamsByRank(selectedPlayers);
+    } else {
+        selectedPlayers = selectPlayersByPriority(playersInVc, getPriorityScore);
+        return balanceTeamsByRank(selectedPlayers);
+    }
 }
