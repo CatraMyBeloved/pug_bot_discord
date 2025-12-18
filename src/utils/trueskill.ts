@@ -10,7 +10,6 @@ export const TRUESKILL_CONFIG = {
     drawProbability: 0.1,     // Low draw probability for Overwatch
 };
 
-// Initialize the TrueSkill rating system instance
 const trueSkillSystem = new TrueSkill(
     TRUESKILL_CONFIG.initialMean,
     TRUESKILL_CONFIG.initialStandardDeviation,
@@ -29,7 +28,7 @@ const RANK_SEEDING: Record<Rank, number> = {
     grandmaster: 45.0,
 };
 
-const SEEDED_SIGMA = 5.0; // Lower uncertainty for seeded players (we are more confident in their rank)
+const SEEDED_SIGMA = 5.0;
 
 export interface PlayerRating {
     /** The average skill rating of the player (Mu). Higher is better. */
@@ -45,7 +44,6 @@ export interface PlayerRating {
 export function getSeedingParams(rank: string): PlayerRating {
     const normalizedRank = rank.toLowerCase() as Rank;
     const mu = RANK_SEEDING[normalizedRank] || TRUESKILL_CONFIG.initialMean;
-    // If we found a valid rank seed, use the tighter sigma, otherwise use default wide sigma
     const sigma = RANK_SEEDING[normalizedRank] ? SEEDED_SIGMA : TRUESKILL_CONFIG.initialStandardDeviation;
 
     return {mu, sigma};
@@ -69,19 +67,16 @@ export function calculatePostMatch(
     losers: PlayerRating[],
     isDraw: boolean = false
 ): { winners: PlayerRating[]; losers: PlayerRating[] } {
-    // Convert plain objects to ts-trueskill Rating objects
     const winnerRatings = winners.map(player => new Rating(player.mu, player.sigma));
     const loserRatings = losers.map(player => new Rating(player.mu, player.sigma));
 
 
     const teams = [winnerRatings, loserRatings];
-    // Ranks: 0 = 1st place (winner), 1 = 2nd place (loser). If draw, both are 0.
     const teamRanks = isDraw ? [0, 0] : [0, 1];
 
 
     const newRatings = trueSkillSystem.rate(teams, teamRanks);
 
-    // Unpack results from the library's format back to our simple interface
     const newWinnerRatings = (newRatings[0] as Rating[]).map(rating => ({
         mu: rating.mu,
         sigma: rating.sigma

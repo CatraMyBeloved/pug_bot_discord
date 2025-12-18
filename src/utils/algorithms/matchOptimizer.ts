@@ -199,21 +199,22 @@ export function selectBaseTeam(
 }
 
 /**
- * Build candidate pools within skill band
+ * Build candidate pools within skill band (ADAPTIVE)
  *
  * Selection criteria:
  * - Within skill band (μ ∈ [band.min, band.max])
  * - Sorted by priority (descending)
- * - Top N per role: 4 tanks, 6 DPS, 6 support
+ * - Top N per role (up to available): targeting 4 tanks, 6 DPS, 6 support
+ * - Uses whatever candidates are available (adaptive to player count)
  *
- * Fallback: If any pool < required size, expand band by 25% and retry once
+ * Fallback: If any pool has zero candidates, expand band by 25% and retry once
  *
  * @param allPlayers - All available players
  * @param baseTeam - Base team (to exclude from pools)
  * @param band - Initial skill band
  * @param getPriorityScore - Priority calculator
  * @returns Candidate pools and final band used
- * @throws {InsufficientRoleCompositionError} If pools still insufficient after expansion
+ * @throws {InsufficientRoleCompositionError} If any role has zero candidates after expansion
  * @internal Exported for testing
  */
 export function buildCandidatePools(
@@ -234,6 +235,7 @@ export function buildCandidatePools(
 
     /**
      * Attempt to build pools with given skill band
+     * Adaptive: uses whatever candidates are available (up to target sizes)
      */
     function attemptBuild(currentBand: SkillBand): CandidatePools | null {
         // Filter players within skill band and excluding base team
@@ -255,34 +257,35 @@ export function buildCandidatePools(
             p.availableRoles.includes('support')
         );
 
-        // Check if we have enough candidates for each role
+        // Adaptive approach: use whatever candidates are available
+        // Only fail if we have zero candidates in any role
         if (
-            tankCandidates.length < targetPoolSizes.tank ||
-            dpsCandidates.length < targetPoolSizes.dps ||
-            supportCandidates.length < targetPoolSizes.support
+            tankCandidates.length === 0 ||
+            dpsCandidates.length === 0 ||
+            supportCandidates.length === 0
         ) {
-            return null; // Insufficient candidates
+            return null; // Need at least one candidate per role for optimization
         }
 
-        // Select top N by priority for each role
+        // Select top N by priority for each role (up to available or target, whichever is smaller)
         const tanks = selectTopNByPriority(
             tankCandidates,
             'tank',
-            targetPoolSizes.tank,
+            Math.min(targetPoolSizes.tank, tankCandidates.length),
             getPriorityScore
         );
 
         const dps = selectTopNByPriority(
             dpsCandidates,
             'dps',
-            targetPoolSizes.dps,
+            Math.min(targetPoolSizes.dps, dpsCandidates.length),
             getPriorityScore
         );
 
         const support = selectTopNByPriority(
             supportCandidates,
             'support',
-            targetPoolSizes.support,
+            Math.min(targetPoolSizes.support, supportCandidates.length),
             getPriorityScore
         );
 
@@ -332,7 +335,9 @@ export function buildCandidatePools(
         support: inBandPlayers.filter((p) => p.availableRoles.includes('support')).length,
     };
 
-    throw new InsufficientRoleCompositionError(targetPoolSizes, found);
+    // Since we're adaptive, we only need at least 1 candidate per role
+    const minimumRequired = { tank: 1, dps: 1, support: 1 };
+    throw new InsufficientRoleCompositionError(minimumRequired, found);
 }
 
 /**
@@ -592,14 +597,29 @@ export function optimizeMatchSelection(
     const skillBand = calculateSkillBand(baseTeam);
 
     // Step 5: Build candidate pools within skill band
-    const { pools } = buildCandidatePools(
-        players,
-        baseTeam,
-        skillBand,
-        getPriorityScore
-    );
+    let poolBuildResult;
+    try {
+        poolBuildResult = buildCandidatePools(
+            players,
+            baseTeam,
+            skillBand,
+            getPriorityScore
+        );
+    } catch (error) {
+        // If we can't build candidate pools, return base team
+        // This can happen when remaining players don't have proper role distribution
+        return baseTeam;
+    }
 
-    // Step 6: Check if optimization is needed
+    const { pools } = poolBuildResult;
+
+    // Step 6: Check if optimization is possible
+    // Need at least 2 tanks, 4 DPS, 4 support to form a complete team for comparison
+    if (pools.tanks.length < 2 || pools.dps.length < 4 || pools.support.length < 4) {
+        // Not enough candidates to optimize - return base team
+        return baseTeam;
+    }
+
     // If pools exactly match required sizes, no alternatives to consider
     if (pools.tanks.length === 2 && pools.dps.length === 4 && pools.support.length === 4) {
         return baseTeam;
