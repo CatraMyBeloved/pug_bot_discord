@@ -236,8 +236,8 @@ describe('matchOptimizer', () => {
                 }).toThrow(InsufficientRoleCompositionError);
             });
 
-            it('throws InsufficientRoleCompositionError after band expansion fails', () => {
-                // Create scenario where even after band expansion, there aren't enough tanks
+            it('returns base team after band expansion fails', () => {
+                // Create scenario where even after band expansion, there aren't enough tanks for optimization
                 // All tanks are far outside the skill band
                 const players: PlayerWithRoles[] = [
                     // Only 1 tank within reasonable range
@@ -251,9 +251,9 @@ describe('matchOptimizer', () => {
 
                 const getPriority = jest.fn(() => 100);
 
-                expect(() => {
-                    optimizeMatchSelection(players, getPriority);
-                }).toThrow(InsufficientRoleCompositionError);
+                // Should fallback to base team instead of throwing
+                const result = optimizeMatchSelection(players, getPriority);
+                expect(result).toHaveLength(10);
             });
         });
 

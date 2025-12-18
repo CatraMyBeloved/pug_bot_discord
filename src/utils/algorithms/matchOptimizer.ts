@@ -258,13 +258,14 @@ export function buildCandidatePools(
         );
 
         // Adaptive approach: use whatever candidates are available
-        // Only fail if we have zero candidates in any role
+        // Only fail if we have insufficient candidates to form a valid optimization pool
+        // (i.e. we want to try expanding if we don't hit our targets)
         if (
-            tankCandidates.length === 0 ||
-            dpsCandidates.length === 0 ||
-            supportCandidates.length === 0
+            tankCandidates.length < targetPoolSizes.tank ||
+            dpsCandidates.length < targetPoolSizes.dps ||
+            supportCandidates.length < targetPoolSizes.support
         ) {
-            return null; // Need at least one candidate per role for optimization
+            return null; // Trigger expansion if we don't meet targets
         }
 
         // Select top N by priority for each role (up to available or target, whichever is smaller)
@@ -492,6 +493,17 @@ export function selectOptimalCombination(
     // Iterate through all combinations
     for (const selection of generateCombinations(pools)) {
         totalEvaluated++;
+
+        // Validate uniqueness: ensure no player is selected for multiple roles
+        const uniqueUserIds = new Set([
+            ...selection.tanks.map(p => p.userId),
+            ...selection.dps.map(p => p.userId),
+            ...selection.support.map(p => p.userId)
+        ]);
+
+        if (uniqueUserIds.size !== 10) {
+            continue; // Skip combinations with duplicate players
+        }
 
         // Convert RoleSelection to SelectedPlayer[]
         const selectedPlayers: SelectedPlayer[] = [
