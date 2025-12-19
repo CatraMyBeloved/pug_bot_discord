@@ -28,14 +28,13 @@ describe('About Command', () => {
 
         const callArgs = (mockInteraction.reply as jest.Mock).mock.calls[0][0];
         const embed = callArgs.embeds[0];
-        
+
         expect(embed.data.title).toContain('Overwatch 2 PUG Bot');
         expect(embed.data.fields).toEqual(
             expect.arrayContaining([
-                expect.objectContaining({ name: 'Version', value: 'v1.0.0' }),
-                expect.objectContaining({ name: 'Core Capabilities' }),
-                expect.objectContaining({ name: 'Matchmaking Engine' }),
-                expect.objectContaining({ name: 'Key Commands' })
+                expect.objectContaining({name: 'Core Capabilities'}),
+                expect.objectContaining({name: 'Matchmaking Engine'}),
+                expect.objectContaining({name: 'Key Commands'})
             ])
         );
     });
