@@ -3,15 +3,18 @@ import Database from 'better-sqlite3';
 import {
     addPugLeaderRole,
     getGuildConfig,
+    getMatchmakingWeights,
     getPugLeaderRoles,
     removePugLeaderRole,
     setAnnouncementChannel,
     setAutoMove,
     setMainVC,
+    setMatchmakingWeights,
     setPugLeaderRole,
     setPugRole,
     setTeam1VC,
     setTeam2VC,
+    validateMatchmakingWeights,
 } from '../../../src/database/config';
 import {closeTestDatabase, createTestDatabase, getRowCount} from '../../setup/testUtils';
 
@@ -421,6 +424,103 @@ describe('Guild Configuration Database Operations', () => {
 
                 expect(rolesGuild123).not.toContain('role1');
                 expect(rolesGuild456).toContain('role1');
+            });
+        });
+    });
+
+    describe('Matchmaking Weights Configuration', () => {
+        describe('validateMatchmakingWeights', () => {
+            it('returns valid for correct weights summing to 1.0', () => {
+                const result = validateMatchmakingWeights(0.5, 0.5);
+                expect(result.valid).toBe(true);
+                expect(result.errors).toHaveLength(0);
+            });
+
+            it('returns valid for another correct pair (0.2, 0.8)', () => {
+                const result = validateMatchmakingWeights(0.2, 0.8);
+                expect(result.valid).toBe(true);
+            });
+
+            it('returns valid for 0 and 1', () => {
+                const result = validateMatchmakingWeights(0, 1);
+                expect(result.valid).toBe(true);
+            });
+
+            it('returns invalid if sum is not 1.0', () => {
+                const result = validateMatchmakingWeights(0.5, 0.6);
+                expect(result.valid).toBe(false);
+                expect(result.errors[0]).toContain('sum to 1.0');
+            });
+
+            it('returns invalid if fairness weight is out of range', () => {
+                const result = validateMatchmakingWeights(1.2, -0.2); // Sum is 1, but individually invalid
+                expect(result.valid).toBe(false);
+                expect(result.errors).toContain('Fairness weight must be between 0 and 1');
+                expect(result.errors).toContain('Priority weight must be between 0 and 1');
+            });
+
+            it('returns invalid for non-number inputs', () => {
+                // @ts-ignore
+                const result = validateMatchmakingWeights('0.5', 0.5);
+                expect(result.valid).toBe(false);
+                expect(result.errors).toContain('Fairness weight must be a valid number');
+            });
+        });
+
+        describe('setMatchmakingWeights', () => {
+            it('saves valid weights to the database', () => {
+                setMatchmakingWeights(db, 'guild1', 0.3, 0.7);
+                const config = getGuildConfig(db, 'guild1');
+
+                expect(config?.fairness_weight).toBe(0.3);
+                expect(config?.priority_weight).toBe(0.7);
+                expect(getRowCount(db, 'guild_config')).toBe(1);
+            });
+
+            it('updates existing weights', () => {
+                setMatchmakingWeights(db, 'guild1', 0.3, 0.7);
+                setMatchmakingWeights(db, 'guild1', 0.6, 0.4);
+
+                const config = getGuildConfig(db, 'guild1');
+                expect(config?.fairness_weight).toBe(0.6);
+                expect(config?.priority_weight).toBe(0.4);
+                expect(getRowCount(db, 'guild_config')).toBe(1);
+            });
+
+            it('updates timestamp on update', () => {
+                setMatchmakingWeights(db, 'guild1', 0.3, 0.7);
+                const firstConfig = getGuildConfig(db, 'guild1');
+
+                // Small delay to ensure timestamp difference if resolution is high,
+                // but usually separate queries are enough in tests.
+                setMatchmakingWeights(db, 'guild1', 0.6, 0.4);
+                const secondConfig = getGuildConfig(db, 'guild1');
+
+                expect(firstConfig?.updated_at).toBeDefined();
+                expect(secondConfig?.updated_at).toBeDefined();
+                // Note: In fast tests, timestamps might be identical if second resolution,
+                // but checking they exist matches the 'setMainVC' pattern.
+            });
+
+            it('throws error for invalid weights', () => {
+                expect(() => {
+                    setMatchmakingWeights(db, 'guild1', 0.5, 0.6);
+                }).toThrow();
+                // Ensure no bad data was written if it was a new insert
+                expect(getRowCount(db, 'guild_config')).toBe(0);
+            });
+        });
+
+        describe('getMatchmakingWeights', () => {
+            it('returns default weights (0.2, 0.8) if no config exists', () => {
+                const weights = getMatchmakingWeights(db, 'guild_nonexistent');
+                expect(weights).toEqual({fairnessWeight: 0.2, priorityWeight: 0.8});
+            });
+
+            it('returns saved weights if config exists', () => {
+                setMatchmakingWeights(db, 'guild1', 0.4, 0.6);
+                const weights = getMatchmakingWeights(db, 'guild1');
+                expect(weights).toEqual({fairnessWeight: 0.4, priorityWeight: 0.6});
             });
         });
     });

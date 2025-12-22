@@ -511,8 +511,8 @@ async function handleWeightsSubmit(
 
     const embed = buildSettingsEmbed(session);
     const buttons = buildSettingsButtons(session.settings.autoMove);
-
-    await interaction.update({
+    await interaction.deferUpdate();
+    await interaction.editReply({
         embeds: [embed],
         components: buttons
     });

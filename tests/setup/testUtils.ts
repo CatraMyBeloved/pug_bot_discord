@@ -63,6 +63,8 @@ export function createTestDatabase(): Database.Database {
             pug_leader_role_id       TEXT,
             announcement_channel_id  TEXT,
             auto_move                INTEGER  NOT NULL DEFAULT 1,
+            fairness_weight          REAL     NOT NULL DEFAULT 0.2,
+            priority_weight          REAL     NOT NULL DEFAULT 0.8,
             updated_at               DATETIME          DEFAULT CURRENT_TIMESTAMP
         );
 
