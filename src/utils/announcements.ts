@@ -1,6 +1,6 @@
 import {Client} from 'discord.js';
 import Database from 'better-sqlite3';
-import {getGuildConfig} from '../database/config.js';
+import {getGuildConfig} from '../database/config';
 
 export type AnnouncementType = 'scheduled' | 'reminder_24h' | 'reminder_1h' | 'cancelled';
 
