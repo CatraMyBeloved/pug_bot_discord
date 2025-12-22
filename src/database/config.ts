@@ -9,6 +9,8 @@ export interface GuildConfig {
     pug_leader_role_id: string | null;
     announcement_channel_id: string | null;
     auto_move: number;
+    fairness_weight: number;
+    priority_weight: number;
     updated_at: string;
 }
 
@@ -149,4 +151,102 @@ export function removePugLeaderRole(
     const stmt = db.prepare('DELETE FROM guild_pug_leader_roles WHERE guild_id = ? AND role_id = ?');
     const result = stmt.run(guildId, roleId);
     return result.changes > 0;
+}
+
+export interface MatchmakingWeights {
+    fairnessWeight: number;
+    priorityWeight: number;
+}
+
+export interface WeightValidationResult {
+    valid: boolean;
+    errors: string[];
+}
+
+/**
+ * Validate matchmaking weights
+ * Rules:
+ * - Both must be numbers
+ * - Both must be >= 0 and <= 1
+ * - Sum must equal 1.0 (tolerance: ±0.001)
+ */
+export function validateMatchmakingWeights(
+    fairnessWeight: number,
+    priorityWeight: number
+): WeightValidationResult {
+    const errors: string[] = [];
+
+    if (typeof fairnessWeight !== 'number' || isNaN(fairnessWeight)) {
+        errors.push('Fairness weight must be a valid number');
+    }
+    if (typeof priorityWeight !== 'number' || isNaN(priorityWeight)) {
+        errors.push('Priority weight must be a valid number');
+    }
+    if (fairnessWeight < 0 || fairnessWeight > 1) {
+        errors.push('Fairness weight must be between 0 and 1');
+    }
+    if (priorityWeight < 0 || priorityWeight > 1) {
+        errors.push('Priority weight must be between 0 and 1');
+    }
+
+    const sum = fairnessWeight + priorityWeight;
+    if (Math.abs(sum - 1.0) > 0.001) {
+        errors.push(`Weights must sum to 1.0 (current sum: ${sum.toFixed(3)})`);
+    }
+
+    return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Get matchmaking weights for a guild, with fallback to defaults
+ * @param db - Database instance
+ * @param guildId - Guild ID
+ * @returns Matchmaking weights (defaults: 0.2 fairness, 0.8 priority)
+ */
+export function getMatchmakingWeights(
+    db: Database.Database,
+    guildId: string
+): MatchmakingWeights {
+    const config = getGuildConfig(db, guildId);
+
+    if (!config) {
+        return { fairnessWeight: 0.2, priorityWeight: 0.8 };
+    }
+
+    return {
+        fairnessWeight: config.fairness_weight ?? 0.2,
+        priorityWeight: config.priority_weight ?? 0.8
+    };
+}
+
+/**
+ * Set matchmaking weights for a guild
+ * @param db - Database instance
+ * @param guildId - Guild ID
+ * @param fairnessWeight - Weight for fairness cost (0-1)
+ * @param priorityWeight - Weight for priority cost (0-1)
+ * @throws Error if validation fails
+ */
+export function setMatchmakingWeights(
+    db: Database.Database,
+    guildId: string,
+    fairnessWeight: number,
+    priorityWeight: number
+): void {
+    const validation = validateMatchmakingWeights(fairnessWeight, priorityWeight);
+
+    if (!validation.valid) {
+        throw new Error(`Invalid matchmaking weights: ${validation.errors.join(', ')}`);
+    }
+
+    const stmt = db.prepare(`
+        INSERT INTO guild_config (guild_id, fairness_weight, priority_weight)
+        VALUES (?, ?, ?)
+        ON CONFLICT(guild_id) DO UPDATE SET
+            fairness_weight = excluded.fairness_weight,
+            priority_weight = excluded.priority_weight,
+            updated_at = CURRENT_TIMESTAMP
+    `);
+
+    stmt.run(guildId, fairnessWeight, priorityWeight);
 }

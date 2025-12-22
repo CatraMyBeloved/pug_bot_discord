@@ -42,7 +42,7 @@ export async function execute(
     if (!hasMatchPermission(member, config, pugLeaderRoles)) {
         await interaction.reply({
             content:
-                "You don't have permission to manage matches. Ask an admin to set up PUG Leader roles with `/setup pugleader add`.",
+                "You don't have permission to manage matches. Ask an admin to configure PUG Leader roles using `/setup` wizard.",
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -88,7 +88,7 @@ async function handleCreate(
     if (!config?.main_vc_id) {
         await interaction.reply({
             content:
-                'Main voice channel not configured. Use `/setup mainvc` first.',
+                'Main voice channel not configured. Use `/setup` wizard to configure voice channels.',
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -108,7 +108,7 @@ async function handleCreate(
     const userIdsInVC = Array.from(mainVC.members.keys());
 
     try {
-        const teams = createMatchTeams(userIdsInVC, db);
+        const teams = createMatchTeams(userIdsInVC, db, interaction.guildId!);
 
         const participants = [
             ...teams.team1.map((p) => ({

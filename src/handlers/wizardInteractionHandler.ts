@@ -1,4 +1,4 @@
-import {ButtonInteraction, ChannelSelectMenuInteraction, MessageFlags, RoleSelectMenuInteraction} from 'discord.js';
+import {ButtonInteraction, ChannelSelectMenuInteraction, MessageFlags, ModalSubmitInteraction, RoleSelectMenuInteraction} from 'discord.js';
 import Database from 'better-sqlite3';
 import {wizardState, WizardSession, WizardCategory} from '../wizard/WizardState';
 import {
@@ -6,6 +6,7 @@ import {
     buildAnnouncementsEmbed,
     buildMainMenuButtons,
     buildMainMenuEmbed,
+    buildMatchmakingWeightsModal,
     buildReviewButtons,
     buildReviewEmbed,
     buildRolesComponents,
@@ -22,9 +23,11 @@ import {
     setAnnouncementChannel,
     setAutoMove,
     setMainVC,
+    setMatchmakingWeights,
     setPugRole,
     setTeam1VC,
-    setTeam2VC
+    setTeam2VC,
+    validateMatchmakingWeights
 } from '../database/config';
 
 export async function handleWizardButton(
@@ -58,6 +61,8 @@ export async function handleWizardButton(
             await handleNavigate(interaction, session, target);
         } else if (action === 'toggle') {
             await handleToggle(interaction, session, target, db);
+        } else if (action === 'configure') {
+            await handleConfigure(interaction, session, target);
         } else if (action === 'back') {
             await handleBack(interaction, session);
         } else if (action === 'review') {
@@ -156,6 +161,25 @@ async function handleToggle(
     }
 }
 
+async function handleConfigure(
+    interaction: ButtonInteraction,
+    session: WizardSession,
+    configType: string
+) {
+    if (configType === 'weights') {
+        const modal = buildMatchmakingWeightsModal(
+            session.settings.fairnessWeight,
+            session.settings.priorityWeight
+        );
+        await interaction.showModal(modal);
+    } else {
+        await interaction.reply({
+            content: 'Unknown configuration type.',
+            flags: MessageFlags.Ephemeral
+        });
+    }
+}
+
 async function handleBack(
     interaction: ButtonInteraction,
     session: WizardSession
@@ -225,6 +249,7 @@ async function handleConfirm(
         setPugRole(db, session.guildId, settings.pugRoleId!);
         setAnnouncementChannel(db, session.guildId, settings.announcementChannelId!);
         setAutoMove(db, session.guildId, settings.autoMove);
+        setMatchmakingWeights(db, session.guildId, settings.fairnessWeight, settings.priorityWeight);
 
         // Clear old PUG leader roles and add new ones
         db.prepare('DELETE FROM guild_pug_leader_roles WHERE guild_id = ?').run(session.guildId);
@@ -413,5 +438,89 @@ async function refreshView(
     await interaction.update({
         embeds: [embed],
         components: components
+    });
+}
+
+// Modal submission handler
+export async function handleWizardModal(
+    interaction: ModalSubmitInteraction,
+    db: Database.Database
+) {
+    if (!interaction.guildId || !interaction.guild) {
+        await interaction.reply({
+            content: 'This can only be used in a server.',
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    const session = wizardState.getSession(interaction.user.id, interaction.guildId);
+    if (!session) {
+        await interaction.reply({
+            content: 'Your wizard session has expired. Please run `/setup` again.',
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    const customId = interaction.customId;
+
+    try {
+        if (customId === 'wizard:submit:weights') {
+            await handleWeightsSubmit(interaction, session);
+        } else {
+            await interaction.reply({
+                content: 'Unknown modal submission.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+    } catch (error) {
+        console.error('Wizard modal error:', error);
+        await interaction.reply({
+            content: 'An error occurred processing your submission. Please try again.',
+            flags: MessageFlags.Ephemeral
+        }).catch(() => {});
+    }
+}
+
+async function handleWeightsSubmit(
+    interaction: ModalSubmitInteraction,
+    session: WizardSession
+) {
+    const fairnessStr = interaction.fields.getTextInputValue('fairness_weight_input');
+    const priorityStr = interaction.fields.getTextInputValue('priority_weight_input');
+
+    const fairnessWeight = parseFloat(fairnessStr);
+    const priorityWeight = parseFloat(priorityStr);
+
+    const validation = validateMatchmakingWeights(fairnessWeight, priorityWeight);
+
+    if (!validation.valid) {
+        await interaction.reply({
+            content: `**[VALIDATION ERROR]**\n\n${validation.errors.map(e => `• ${e}`).join('\n')}\n\n` +
+                     `Please try again. Remember: weights must sum to exactly 1.0`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    wizardState.updateSettings(session.userId, session.guildId, {
+        fairnessWeight,
+        priorityWeight
+    });
+
+    const embed = buildSettingsEmbed(session);
+    const buttons = buildSettingsButtons(session.settings.autoMove);
+
+    await interaction.update({
+        embeds: [embed],
+        components: buttons
+    });
+
+    await interaction.followUp({
+        content: `**[SUCCESS]** Matchmaking weights updated!\n` +
+                 `• Fairness Weight: ${fairnessWeight.toFixed(2)}\n` +
+                 `• Priority Weight: ${priorityWeight.toFixed(2)}`,
+        flags: MessageFlags.Ephemeral
     });
 }

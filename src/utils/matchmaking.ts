@@ -1,7 +1,8 @@
 import Database from 'better-sqlite3';
 import {getPlayer} from '../database/players';
 import {getLastPlayed} from '../database/matches';
-import {BalancedTeams, PlayerWithRoles, Rank, Role,} from '../types/matchmaking';
+import {getMatchmakingWeights} from '../database/config';
+import {BalancedTeams, PlayerWithRoles, Rank, Role, OptimizerConfig, DEFAULT_OPTIMIZER_CONFIG} from '../types/matchmaking';
 
 import {selectPlayersByPriority} from './algorithms/prioritySelection';
 import {balanceTeamsBySkill} from './algorithms/rankBalancing';
@@ -20,11 +21,13 @@ const USE_MATCHMAKING_V2 = true;
  *
  * @param userIds - Discord user IDs of players in voice channel
  * @param db - Database connection
+ * @param guildId - Guild ID for fetching guild-specific config
  * @returns Balanced teams with 5 players each
  */
 export function createMatchTeams(
     userIds: string[],
-    db: Database.Database
+    db: Database.Database,
+    guildId: string
 ): BalancedTeams {
     const playersInVc: PlayerWithRoles[] = [];
 
@@ -56,11 +59,20 @@ export function createMatchTeams(
         return daysSince;
     };
 
+    // Fetch guild-specific matchmaking weights
+    const weights = getMatchmakingWeights(db, guildId);
+
+    // Build config with guild weights
+    const config: OptimizerConfig = {
+        ...DEFAULT_OPTIMIZER_CONFIG,
+        fairnessWeight: weights.fairnessWeight,
+        priorityWeight: weights.priorityWeight
+    };
 
     // Feature flag: Use V2 optimizer or V1 priority selection
     let selectedPlayers;
     if (USE_MATCHMAKING_V2) {
-        selectedPlayers = optimizeMatchSelection(playersInVc, getPriorityScore);
+        selectedPlayers = optimizeMatchSelection(playersInVc, getPriorityScore, config);
         return balanceTeamsBySkill(selectedPlayers);
     } else {
         selectedPlayers = selectPlayersByPriority(playersInVc, getPriorityScore);

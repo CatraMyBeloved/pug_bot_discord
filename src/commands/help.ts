@@ -97,12 +97,17 @@ function getStartContent(): string {
 1. **Run the Setup Wizard:**
    • \`/setup\` - Launches an interactive wizard to configure everything
 
-2. **Follow the Steps:**
-   • Select voice channels (Main, Team 1, Team 2)
-   • Configure roles (PUG Participant, PUG Leader)
-   • Set announcement channel
+2. **Configure Through the Wizard:**
+   • Select voice channels (Main VC, Team 1 VC, Team 2 VC) from dropdowns
+   • Set roles (PUG Participant, PUG Leader) using role selectors
+   • Configure announcement channel for scheduled PUG reminders
+   • Toggle auto-move setting (automatically move players to team VCs)
 
-**That's it!** The wizard guides you through the entire process.`;
+3. **Review and Confirm:**
+   • The wizard shows a review screen before saving
+   • All changes are saved atomically when you confirm
+
+**That's it!** No need to copy/paste channel IDs or enable Developer Mode.`;
 }
 
 function getPlayerContent(): string {
@@ -216,12 +221,13 @@ The bot selects 10 players from those in the main voice channel based on:
 2. **Role Availability** - Ensures proper composition (2 tanks, 4 DPS, 4 supports)
 3. **Selection Order** - Scarce roles filled first (tanks → supports → DPS)
 
-**Team Balancing (Rank System):**
-Once 10 players are selected, teams are balanced by:
+**Team Balancing (TrueSkill System):**
+The bot uses an advanced V2 Optimization algorithm:
 
-1. **Rank Values** - Each rank has a value (Bronze=1 to Grandmaster=7)
-2. **Greedy Assignment** - Players assigned to team with lower total rank
-3. **Role Enforcement** - Each team gets 1 tank, 2 DPS, 2 support
+1. **TrueSkill Ratings** - Each player has a skill rating (μ) based on match history
+2. **Smart Optimization** - Evaluates 1,350+ possible team combinations
+3. **Balanced Weighting** - 80% priority fairness, 20% skill fairness
+4. **Role Enforcement** - Each team gets 1 tank, 2 DPS, 2 support
 
 **Multi-Role System:**
 • Players can register for multiple roles
@@ -271,7 +277,7 @@ Use \`/schedulepug\` (Admin only):
 • Times are entered in **UTC** timezone
 • Discord shows times in each user's local timezone
 • Must schedule at least 2 hours in advance
-• Requires announcement channel configuration (\`/setup announcementchannel\`)`;
+• Requires announcement channel configuration (use \`/setup\` wizard)`;
 }
 
 function getLeaderboardContent(): string {

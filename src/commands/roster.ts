@@ -23,7 +23,7 @@ export async function execute(
 
     if (!config || !config.main_vc_id) {
         await interaction.reply({
-            content: 'Main voice channel not configured. Use `/setup mainvc` to set it up.',
+            content: 'Main voice channel not configured. Use `/setup` wizard to configure voice channels.',
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -34,7 +34,7 @@ export async function execute(
 
         if (!channel || !channel.isVoiceBased()) {
             await interaction.reply({
-                content: 'Could not find the main voice channel. Please reconfigure with `/setup mainvc`.',
+                content: 'Could not find the main voice channel. Please reconfigure using `/setup` wizard.',
                 flags: MessageFlags.Ephemeral,
             });
             return;

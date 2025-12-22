@@ -27,7 +27,7 @@ import * as helpCommand from './commands/help';
 import * as testCommand from './commands/test';
 import * as aboutCommand from './commands/about';
 import {handleCancelpugButton} from './handlers/cancelpugHandlers';
-import {handleWizardButton, handleWizardSelectMenu} from './handlers/wizardInteractionHandler';
+import {handleWizardButton, handleWizardSelectMenu, handleWizardModal} from './handlers/wizardInteractionHandler';
 import {handleSetupResetButton} from './handlers/setupResetHandlers';
 import {handleRegistrationButton, handleRegistrationModal} from './handlers/registrationInteractionHandler';
 import {handleUpdateButton, handleUpdateModal} from './handlers/updateInteractionHandler';
@@ -149,6 +149,11 @@ client.on('interactionCreate', async (interaction) => {
 
         if (customId.startsWith('update:')) {
             await handleUpdateModal(interaction, db);
+            return;
+        }
+
+        if (customId.startsWith('wizard:')) {
+            await handleWizardModal(interaction, db);
             return;
         }
 

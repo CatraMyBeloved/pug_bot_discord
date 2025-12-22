@@ -12,6 +12,8 @@ export interface WizardSettings {
     pugLeaderRoleIds: string[];
     announcementChannelId: string | null;
     autoMove: boolean;
+    fairnessWeight: number;
+    priorityWeight: number;
 }
 
 export interface WizardSession {
@@ -61,6 +63,8 @@ export class WizardStateManager {
                 pugLeaderRoleIds: [],
                 announcementChannelId: null,
                 autoMove: true, // Default value
+                fairnessWeight: 0.2,
+                priorityWeight: 0.8,
             },
             completedCategories: new Set(),
         };

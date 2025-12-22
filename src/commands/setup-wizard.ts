@@ -76,6 +76,14 @@ export async function execute(
                 session.settings.announcementChannelId = config.announcement_channel_id;
             }
             session.settings.autoMove = config.auto_move === 1;
+
+            // Load existing matchmaking weights
+            if (config.fairness_weight !== undefined && config.fairness_weight !== null) {
+                session.settings.fairnessWeight = config.fairness_weight;
+            }
+            if (config.priority_weight !== undefined && config.priority_weight !== null) {
+                session.settings.priorityWeight = config.priority_weight;
+            }
         }
 
         // Load existing PUG leader roles

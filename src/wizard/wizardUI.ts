@@ -5,7 +5,10 @@ import {
     ChannelSelectMenuBuilder,
     ChannelType,
     EmbedBuilder,
-    RoleSelectMenuBuilder
+    ModalBuilder,
+    RoleSelectMenuBuilder,
+    TextInputBuilder,
+    TextInputStyle
 } from 'discord.js';
 import {WizardSession} from './WizardState';
 
@@ -231,29 +234,48 @@ export function buildSettingsEmbed(session: WizardSession): EmbedBuilder {
     const {settings} = session;
 
     const autoMove = settings.autoMove ? '**ENABLED**' : 'DISABLED';
-    const description = settings.autoMove
+    const autoMoveDesc = settings.autoMove
         ? 'Players will be automatically moved to their team voice channels when a match starts.'
         : 'Players will NOT be automatically moved. They must join team voice channels manually.';
 
+    const fairness = settings.fairnessWeight.toFixed(2);
+    const priority = settings.priorityWeight.toFixed(2);
+
     return new EmbedBuilder()
         .setTitle('Bot Settings')
-        .setDescription(description)
-        .addFields({name: 'Auto-move to Team VCs', value: autoMove})
+        .setDescription(autoMoveDesc)
+        .addFields(
+            {name: 'Auto-move to Team VCs', value: autoMove, inline: false},
+            {
+                name: 'Matchmaking Weights',
+                value: `**Fairness:** ${fairness} | **Priority:** ${priority}\n` +
+                       `*(Fairness balances skill, Priority rewards waiting time)*`,
+                inline: false
+            }
+        )
         .setColor(0x5865F2);
 }
 
 export function buildSettingsButtons(currentValue: boolean): ActionRowBuilder<ButtonBuilder>[] {
-    const label = currentValue ? 'Disable Auto-move' : 'Enable Auto-move';
+    const autoMoveLabel = currentValue ? 'Disable Auto-move' : 'Enable Auto-move';
 
     const row1 = new ActionRowBuilder<ButtonBuilder>()
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('wizard:toggle:auto_move')
-                .setLabel(label)
+                .setLabel(autoMoveLabel)
                 .setStyle(ButtonStyle.Secondary)
         );
 
     const row2 = new ActionRowBuilder<ButtonBuilder>()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('wizard:configure:weights')
+                .setLabel('Configure Matchmaking Weights')
+                .setStyle(ButtonStyle.Primary)
+        );
+
+    const row3 = new ActionRowBuilder<ButtonBuilder>()
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('wizard:back:menu')
@@ -261,7 +283,7 @@ export function buildSettingsButtons(currentValue: boolean): ActionRowBuilder<Bu
                 .setStyle(ButtonStyle.Primary)
         );
 
-    return [row1, row2];
+    return [row1, row2, row3];
 }
 
 export function buildReviewEmbed(session: WizardSession): EmbedBuilder {
@@ -282,7 +304,12 @@ export function buildReviewEmbed(session: WizardSession): EmbedBuilder {
             },
             {name: '\u200B', value: '\u200B', inline: true},
             {name: 'Announcement Channel', value: `<#${settings.announcementChannelId}>`, inline: true},
-            {name: 'Auto-move', value: settings.autoMove ? 'Enabled' : 'Disabled', inline: true}
+            {name: 'Auto-move', value: settings.autoMove ? 'Enabled' : 'Disabled', inline: true},
+            {
+                name: 'Matchmaking Weights',
+                value: `Fairness: ${settings.fairnessWeight.toFixed(2)} | Priority: ${settings.priorityWeight.toFixed(2)}`,
+                inline: true
+            }
         )
         .setColor(0x00FF00);
 }
@@ -301,5 +328,53 @@ export function buildReviewButtons(): ActionRowBuilder<ButtonBuilder>[] {
         );
 
     return [row1];
+}
+
+/**
+ * Build modal for configuring matchmaking weights
+ * Shows two input fields with current values pre-filled
+ */
+export function buildMatchmakingWeightsModal(
+    currentFairnessWeight: number,
+    currentPriorityWeight: number
+): ModalBuilder {
+    const modal = new ModalBuilder()
+        .setCustomId('wizard:submit:weights')
+        .setTitle('Configure Matchmaking Weights');
+
+    const fairnessInput = new TextInputBuilder()
+        .setCustomId('fairness_weight_input')
+        .setLabel('Fairness Weight (0.0 - 1.0)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('0.2')
+        .setRequired(true)
+        .setValue(currentFairnessWeight.toString());
+
+    const priorityInput = new TextInputBuilder()
+        .setCustomId('priority_weight_input')
+        .setLabel('Priority Weight (0.0 - 1.0)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('0.8')
+        .setRequired(true)
+        .setValue(currentPriorityWeight.toString());
+
+    const helperInput = new TextInputBuilder()
+        .setCustomId('helper_text')
+        .setLabel('Note: Weights must sum to exactly 1.0')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false)
+        .setPlaceholder(
+            'Fairness Weight: Prioritizes balanced skill levels.\n' +
+            'Priority Weight: Prioritizes players who have waited longest.\n\n' +
+            'Example: 0.2 fairness + 0.8 priority = 1.0'
+        )
+        .setValue('');
+
+    modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(fairnessInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(priorityInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(helperInput)
+    );
+    return modal;
 }
 

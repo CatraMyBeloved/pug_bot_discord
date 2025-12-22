@@ -17,11 +17,11 @@ automated match management.
 
 ## Usage Flow
 
-1. **Server Configuration**: Admin configures voice channels and roles using `/setup` commands
+1. **Server Configuration**: Admin configures bot using the interactive `/setup` wizard
 2. **Player Registration**: Players register using the interactive `/register` command
 3. **Match Creation**: Admin runs `/makepug create` to select 10 players and create balanced teams
 4. **Match Start**: Admin runs `/makepug start` to move players to team voice channels
-5. **Match Completion**: Admin runs `/match finish <team>` to record results and update statistics
+5. **Match Completion**: Admin runs `/match complete <winning_team>` to record results and update statistics
 
 ## Tech Stack
 
@@ -77,16 +77,21 @@ node dist/index.js
 
 ### Server Configuration
 
-Run these commands in your Discord server:
+Run the interactive setup wizard in your Discord server:
 
 ```
-/setup mainvc <channel>              # Main lobby voice channel
-/setup team1vc <channel>             # Team 1 voice channel
-/setup team2vc <channel>             # Team 2 voice channel
-/setup announcementchannel <channel> # Announcements channel
-/setup pugrole <role>                # Role to mention for PUGs
-/setup pugleader add <role>          # Add PUG management role
-/setup automove true                 # Enable automatic voice moves
+/setup              # Launch interactive configuration wizard
+```
+
+The wizard will guide you through:
+- **Voice Channels**: Select Main VC, Team 1 VC, and Team 2 VC from dropdown menus
+- **Roles**: Configure PUG Participant role and PUG Leader roles (supports multiple)
+- **Announcements**: Set channel for scheduled PUG reminders
+- **Settings**: Toggle auto-move (automatically move players to team voice channels)
+
+You can also reset all configuration:
+```
+/setup-reset        # Reset ALL bot configuration (requires confirmation)
 ```
 
 ## Key Commands
@@ -103,7 +108,7 @@ Run these commands in your Discord server:
 
 - `/makepug create` - Create match from players in voice
 - `/makepug start` - Start match and move players
-- `/match finish <winner>` - Record match result
+- `/match complete <winning_team>` - Record match result
 - `/match view` - View current match details
 
 **Scheduling (Admin):**

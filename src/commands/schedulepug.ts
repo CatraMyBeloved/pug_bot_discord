@@ -67,7 +67,7 @@ export async function execute(
 
     if (!hasMatchPermission(member, config, pugLeaderRoles)) {
         await interaction.reply({
-            content: "You don't have permission to schedule matches. Ask an admin to set up PUG Leader roles with `/setup pugleader add`.",
+            content: "You don't have permission to schedule matches. Ask an admin to configure PUG Leader roles using `/setup` wizard.",
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -75,7 +75,7 @@ export async function execute(
 
     if (!config || !config.announcement_channel_id) {
         await interaction.reply({
-            content: 'Announcement channel not configured. Use `/setup announcementchannel` first.',
+            content: 'Announcement channel not configured. Use `/setup` wizard to configure announcements.',
             flags: MessageFlags.Ephemeral,
         });
         return;

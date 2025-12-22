@@ -119,6 +119,8 @@ export function initDatabase(): Database.Database {
             pug_leader_role_id      TEXT,
             announcement_channel_id TEXT,
             auto_move               INTEGER NOT NULL DEFAULT 1,
+            fairness_weight         REAL NOT NULL DEFAULT 0.2,
+            priority_weight         REAL NOT NULL DEFAULT 0.8,
             updated_at              DATETIME         DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -227,6 +229,21 @@ export function initDatabase(): Database.Database {
             console.log(`Seeded TrueSkill ratings for ${players.length} existing players.`);
         } catch (e) {
             console.error('Failed to seed existing players during migration:', e);
+        }
+    }
+
+    // Migration: Add matchmaking weight columns if not present
+    const configColumns = db.pragma('table_info(guild_config)') as Array<{ name: string }>;
+    const hasFairnessWeight = configColumns.some(col => col.name === 'fairness_weight');
+
+    if (!hasFairnessWeight) {
+        console.log('Migrating database: Adding matchmaking weight columns...');
+        try {
+            db.prepare('ALTER TABLE guild_config ADD COLUMN fairness_weight REAL NOT NULL DEFAULT 0.2').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN priority_weight REAL NOT NULL DEFAULT 0.8').run();
+            console.log('Matchmaking weight columns added successfully.');
+        } catch (e) {
+            console.error('Failed to add matchmaking weight columns:', e);
         }
     }
 
