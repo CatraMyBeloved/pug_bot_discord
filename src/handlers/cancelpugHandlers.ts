@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import {cancelScheduledPug, getScheduledPug} from '../database/scheduled_pugs';
 import {getGuildConfig, getPugLeaderRoles} from '../database/config';
 import {hasMatchPermission} from '../utils/permissions';
+import {sendPugAnnouncement} from '../utils/announcements';
 
 export async function handleCancelpugButton(
     interaction: ButtonInteraction,
@@ -88,21 +89,17 @@ export async function handleCancelpugButton(
 
             // Send announcement
             if (config && config.announcement_channel_id) {
-                try {
-                    const channel = await interaction.client.channels.fetch(config.announcement_channel_id);
-                    if (channel && channel.isTextBased()) {
-                        const timestamp = Math.floor(new Date(pug.scheduled_time).getTime() / 1000);
-                        const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '**PUG Update:**';
-
-                        if ("send" in channel) {
-                            await channel.send(
-                                `${roleMention} The scheduled PUG for <t:${timestamp}:F> has been cancelled.`
-                            );
-                        }
+                await sendPugAnnouncement(
+                    interaction.client,
+                    db,
+                    interaction.guildId,
+                    'cancelled',
+                    {
+                        pugId,
+                        scheduledTime: new Date(pug.scheduled_time),
+                        discordEventId: pug.discord_event_id
                     }
-                } catch (error) {
-                    console.warn('Could not send cancellation message:', error);
-                }
+                );
             }
 
             // Update the interaction message

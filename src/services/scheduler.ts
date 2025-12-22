@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import cron from 'node-cron';
 import {getPugsNeedingReminders, markReminderSent, updatePugState, ScheduledPug} from '../database/scheduled_pugs';
 import {getGuildConfig} from '../database/config';
+import {sendPugAnnouncement} from '../utils/announcements';
 
 export function initializeScheduler(client: Client, db: Database.Database): void {
     console.log('Initializing PUG scheduler...');
@@ -51,53 +52,16 @@ async function sendReminder(
     pug: ScheduledPug,
     reminderType: '24h' | '1h'
 ): Promise<void> {
-    try {
-        const config = getGuildConfig(db, pug.guild_id);
-
-        if (!config || !config.announcement_channel_id) {
-            console.warn(`No announcement channel configured for guild ${pug.guild_id}`);
-            return;
+    const announcementType = reminderType === '24h' ? 'reminder_24h' : 'reminder_1h';
+    await sendPugAnnouncement(
+        client,
+        db,
+        pug.guild_id,
+        announcementType,
+        {
+            pugId: pug.pug_id,
+            scheduledTime: new Date(pug.scheduled_time),
+            discordEventId: pug.discord_event_id
         }
-
-        const channel = await client.channels.fetch(config.announcement_channel_id);
-
-        if (!channel || !channel.isTextBased()) {
-            console.warn(`Invalid announcement channel for guild ${pug.guild_id}`);
-            return;
-        }
-
-        const timestamp = Math.floor(new Date(pug.scheduled_time).getTime() / 1000);
-        const roleMention = config.pug_role_id ? `<@&${config.pug_role_id}>` : '**PUG Reminder:**';
-
-        let message: string;
-        if (reminderType === '24h') {
-            message = `${roleMention} Scheduled PUG in 24 hours!\n`;
-        } else {
-            message = `${roleMention} Scheduled PUG starting in 1 hour!\n`;
-        }
-
-        message += `Time: <t:${timestamp}:F>\n`;
-
-        if (pug.discord_event_id) {
-            try {
-                const guild = await client.guilds.fetch(pug.guild_id);
-                const event = await guild.scheduledEvents.fetch(pug.discord_event_id);
-                // @ts-ignore
-                message += `Event: ${event.url}\n`;
-            } catch (error) {
-                console.warn(`Could not fetch Discord event ${pug.discord_event_id}`);
-            }
-        }
-
-        if (reminderType === '1h') {
-            message += `\nGet ready to join the main voice channel!`;
-        }
-
-        if ("send" in channel) {
-            await channel.send(message);
-        }
-        console.log(`Sent ${reminderType} reminder for PUG ${pug.pug_id} in guild ${pug.guild_id}`);
-    } catch (error) {
-        console.error(`Error sending reminder for PUG ${pug.pug_id}:`, error);
-    }
+    );
 }

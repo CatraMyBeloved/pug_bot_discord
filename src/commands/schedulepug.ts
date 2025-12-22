@@ -11,6 +11,7 @@ import Database from 'better-sqlite3';
 import {getGuildConfig, getPugLeaderRoles} from '../database/config';
 import {createScheduledPug} from '../database/scheduled_pugs';
 import {hasMatchPermission} from '../utils/permissions';
+import {sendPugAnnouncement} from '../utils/announcements';
 
 export const data = new SlashCommandBuilder()
     .setName('schedulepug')
@@ -140,6 +141,24 @@ export async function execute(
             interaction.user.id,
             discordEventId
         );
+
+        // Send immediate announcement to the announcement channel
+        try {
+            await sendPugAnnouncement(
+                interaction.client,
+                db,
+                interaction.guildId,
+                'scheduled',
+                {
+                    pugId,
+                    scheduledTime,
+                    discordEventId,
+                    createdBy: interaction.user.id
+                }
+            );
+        } catch (error) {
+            console.error('Failed to send scheduled PUG announcement:', error);
+        }
 
         const timestamp = Math.floor(scheduledTime.getTime() / 1000);
         let response = `PUG scheduled successfully!\n\n`;
