@@ -62,6 +62,12 @@ export function createMatchTeams(
     // Fetch guild-specific matchmaking weights
     const weights = getMatchmakingWeights(db, guildId);
 
+    // Log if using default weights (helpful for debugging)
+    const guildConfig = db.prepare('SELECT fairness_weight FROM guild_config WHERE guild_id = ?').get(guildId) as { fairness_weight: number | null } | undefined;
+    if (!guildConfig || guildConfig.fairness_weight === null) {
+        console.log(`[Matchmaking] Guild ${guildId}: Using default weights (fairness: ${weights.fairnessWeight}, priority: ${weights.priorityWeight})`);
+    }
+
     // Build config with guild weights
     const config: OptimizerConfig = {
         ...DEFAULT_OPTIMIZER_CONFIG,

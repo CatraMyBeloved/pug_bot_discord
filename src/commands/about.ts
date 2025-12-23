@@ -25,7 +25,7 @@ export async function execute(
             },
             {
                 name: 'Matchmaking Engine',
-                value: 'Our **V2 Optimization System** uses:\n• **Priority-Weighted Selection:** Favors players who haven\'t played recently\n• **Adaptive Skill Bands:** Dynamically adjusts player pool based on TrueSkill ratings (μ)\n• **Combinatorial Optimization:** Evaluates 1,350+ team combinations to find optimal balance\n• **Smart Cost Function:** 80% priority weight, 20% fairness weight\n• **Role Composition:** Maintains 1-2-2 role lock (1 Tank, 2 DPS, 2 Support per team)',
+                value: 'Our **V2 Optimization System** uses:\n• **Priority-Weighted Selection:** Favors players who haven\'t played recently\n• **Adaptive Skill Bands:** Dynamically adjusts player pool based on TrueSkill ratings (μ)\n• **Combinatorial Optimization:** Evaluates 1,350+ team combinations to find optimal balance\n• **Configurable Cost Function:** Adjustable balance between fairness (skill) and priority (wait time)\n  - Default: 80% priority weight, 20% fairness weight\n  - Server admins can customize via `/setup` wizard\n• **Role Composition:** Maintains 1-2-2 role lock (1 Tank, 2 DPS, 2 Support per team)',
                 inline: false
             },
              {
