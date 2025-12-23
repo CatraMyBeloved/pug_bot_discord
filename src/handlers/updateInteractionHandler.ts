@@ -15,6 +15,7 @@ import {
 import { validateBattlenetId, validateRegistrationComplete } from '../wizard/registrationValidation';
 import { updatePlayer } from '../database/players';
 import { Role, Rank } from '../types/matchmaking';
+import { executeDeferredOperation } from '../utils/interactionHelpers';
 
 // ============================================================================ 
 // Main Button Handler (Routes to specific handlers)
@@ -335,32 +336,33 @@ async function handleConfirm(interaction: ButtonInteraction, db: Database.Databa
 
     const { battlenetId, selectedRoles, selectedRank } = session.data;
 
-    try {
-        // Update player in database
-        updatePlayer(db, interaction.user.id, battlenetId!, selectedRoles, selectedRank!);
-
-        // Delete session
-        updateState.deleteSession(interaction.user.id);
-
-        // Show success message
-        const successMessage = `**✅ Profile Updated Successfully!**
+    const successMessage = `**✅ Profile Updated Successfully!**
 
 **Battle.net ID:** ${battlenetId}
 **Roles:** ${selectedRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(', ')}
 **Rank:** ${selectedRank!.charAt(0).toUpperCase() + selectedRank!.slice(1)}`;
 
-        await interaction.update({
+    await executeDeferredOperation(
+        interaction,
+        async () => {
+            // Update player in database
+            updatePlayer(db, interaction.user.id, battlenetId!, selectedRoles, selectedRank!);
+
+            // Delete session
+            updateState.deleteSession(interaction.user.id);
+        },
+        {
             content: successMessage,
             embeds: [],
             components: [],
-        });
-    } catch (error) {
-        console.error('Update error:', error);
-        await interaction.reply({
+        },
+        {
             content: '**❌ Update Failed**\n\nAn error occurred while saving your changes. Please try again or contact an administrator.',
-            flags: MessageFlags.Ephemeral,
-        });
-    }
+            embeds: [],
+            components: [],
+        },
+        (msg, error) => console.error('Update error:', error)
+    );
 }
 
 async function handleCancel(interaction: ButtonInteraction): Promise<void> {

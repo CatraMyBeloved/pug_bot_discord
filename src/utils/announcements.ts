@@ -1,4 +1,4 @@
-import {Client} from 'discord.js';
+import {Client, DiscordAPIError} from 'discord.js';
 import Database from 'better-sqlite3';
 import {getGuildConfig} from '../database/config';
 
@@ -80,14 +80,21 @@ async function buildAnnouncementMessage(
     const roleMention = pugRoleId ? `<@&${pugRoleId}>` : 'everyone';
 
     let eventUrl: string | null = null;
-    if (pugData.discordEventId) {
+    // Only fetch event URL for active announcements, not cancellations (saves time and avoids errors)
+    if (pugData.discordEventId && announcementType !== 'cancelled') {
         try {
             const guild = await client.guilds.fetch(guildId);
             const event = await guild.scheduledEvents.fetch(pugData.discordEventId);
             // @ts-ignore - url property exists but not in type definitions
             eventUrl = event.url;
         } catch (error) {
-            console.warn(`Could not fetch Discord event ${pugData.discordEventId}:`, error);
+            // Check if event was already deleted (error code 10070)
+            if (error instanceof DiscordAPIError && error.code === 10070) {
+                console.log(`Discord event ${pugData.discordEventId} was already deleted`);
+            } else {
+                const message = error instanceof Error ? error.message : String(error);
+                console.warn(`Could not fetch Discord event ${pugData.discordEventId}:`, message);
+            }
         }
     }
 

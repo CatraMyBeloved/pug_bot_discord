@@ -1,4 +1,4 @@
-import {ButtonInteraction, GuildMember, MessageFlags} from 'discord.js';
+import {ButtonInteraction, DiscordAPIError, GuildMember, MessageFlags} from 'discord.js';
 import Database from 'better-sqlite3';
 import {cancelScheduledPug, getScheduledPug} from '../database/scheduled_pugs';
 import {getGuildConfig, getPugLeaderRoles} from '../database/config';
@@ -73,6 +73,9 @@ export async function handleCancelpugButton(
 
     if (action === 'confirm') {
         // User confirmed cancellation
+        // Acknowledge interaction immediately to prevent timeout
+        await interaction.deferUpdate();
+
         try {
             // Delete Discord event if it exists
             if (pug.discord_event_id) {
@@ -80,7 +83,13 @@ export async function handleCancelpugButton(
                     const event = await interaction.guild.scheduledEvents.fetch(pug.discord_event_id);
                     await event.delete();
                 } catch (error) {
-                    console.warn(`Could not delete Discord event ${pug.discord_event_id}:`, error);
+                    // Check if event was already deleted (error code 10070)
+                    if (error instanceof DiscordAPIError && error.code === 10070) {
+                        console.log(`Discord event ${pug.discord_event_id} was already deleted (likely by admin)`);
+                    } else {
+                        const message = error instanceof Error ? error.message : String(error);
+                        console.warn(`Could not delete Discord event ${pug.discord_event_id}:`, message);
+                    }
                 }
             }
 
@@ -103,16 +112,26 @@ export async function handleCancelpugButton(
             }
 
             // Update the interaction message
-            await interaction.update({
-                content: `**[CANCELLED]** Scheduled PUG ${pugId} has been cancelled successfully.`,
-                components: [], // Remove buttons
-            });
+            try {
+                await interaction.editReply({
+                    content: `**[CANCELLED]** Scheduled PUG ${pugId} has been cancelled successfully.`,
+                    components: [], // Remove buttons
+                });
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                console.error('Failed to update interaction (already expired):', message);
+            }
         } catch (error) {
             console.error('Cancel PUG error:', error);
-            await interaction.update({
-                content: 'Failed to cancel PUG. Please try again.',
-                components: [],
-            });
+            try {
+                await interaction.editReply({
+                    content: 'Failed to cancel PUG. Please try again.',
+                    components: [],
+                });
+            } catch (updateError) {
+                const message = updateError instanceof Error ? updateError.message : String(updateError);
+                console.error('Failed to send error message (interaction expired):', message);
+            }
         }
     } else if (action === 'decline') {
         // User declined cancellation

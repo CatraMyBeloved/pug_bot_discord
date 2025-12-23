@@ -15,6 +15,7 @@ import {
 import { validateBattlenetId, validateRegistrationComplete } from '../wizard/registrationValidation';
 import { registerPlayer } from '../database/players';
 import { Role, Rank } from '../types/matchmaking';
+import { executeDeferredOperation } from '../utils/interactionHelpers';
 
 // ============================================================================
 // Main Button Handler (Routes to specific handlers)
@@ -332,15 +333,7 @@ async function handleConfirm(interaction: ButtonInteraction, db: Database.Databa
 
     const { battlenetId, selectedRoles, selectedRank } = session.data;
 
-    try {
-        // Register player in database
-        registerPlayer(db, interaction.user.id, battlenetId!, selectedRoles, selectedRank!);
-
-        // Delete session
-        registrationState.deleteSession(interaction.user.id);
-
-        // Show success message
-        const successMessage = `**✅ Registration Successful!**
+    const successMessage = `**✅ Registration Successful!**
 
 **Battle.net ID:** ${battlenetId}
 **Roles:** ${selectedRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(', ')}
@@ -348,18 +341,27 @@ async function handleConfirm(interaction: ButtonInteraction, db: Database.Databa
 
 You can now participate in PUG matches!`;
 
-        await interaction.update({
+    await executeDeferredOperation(
+        interaction,
+        async () => {
+            // Register player in database
+            registerPlayer(db, interaction.user.id, battlenetId!, selectedRoles, selectedRank!);
+
+            // Delete session
+            registrationState.deleteSession(interaction.user.id);
+        },
+        {
             content: successMessage,
             embeds: [],
             components: [],
-        });
-    } catch (error) {
-        console.error('Registration error:', error);
-        await interaction.reply({
+        },
+        {
             content: '**❌ Registration Failed**\n\nAn error occurred while saving your registration. Please try again or contact an administrator.',
-            flags: MessageFlags.Ephemeral,
-        });
-    }
+            embeds: [],
+            components: [],
+        },
+        (msg, error) => console.error('Registration error:', error)
+    );
 }
 
 async function handleCancel(interaction: ButtonInteraction): Promise<void> {
