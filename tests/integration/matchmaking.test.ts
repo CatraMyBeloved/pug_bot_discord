@@ -30,7 +30,7 @@ describe('Matchmaking Integration', () => {
         it('creates balanced teams from voice channel users', () => {
             const userIds = seedPlayers(db, 12, ['tank', 'dps', 'support'], 'gold');
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             expect(teams.team1).toHaveLength(5);
             expect(teams.team2).toHaveLength(5);
@@ -45,7 +45,7 @@ describe('Matchmaking Integration', () => {
         it('selects exactly 10 players when more are available', () => {
             const userIds = seedPlayers(db, 15, ['tank', 'dps', 'support'], 'gold');
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             const allSelectedPlayers = [...teams.team1, ...teams.team2];
             expect(allSelectedPlayers).toHaveLength(10);
@@ -57,7 +57,7 @@ describe('Matchmaking Integration', () => {
         it('assigns each player to exactly one team', () => {
             const userIds = seedPlayers(db, 12, ['tank', 'dps', 'support'], 'gold');
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             const team1Ids = teams.team1.map(p => p.userId);
             const team2Ids = teams.team2.map(p => p.userId);
@@ -70,7 +70,7 @@ describe('Matchmaking Integration', () => {
         it('assigns each player exactly one role for the match', () => {
             const userIds = seedPlayers(db, 12, ['tank', 'dps', 'support'], 'gold');
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             const allPlayers = [...teams.team1, ...teams.team2];
             allPlayers.forEach(player => {
@@ -86,7 +86,7 @@ describe('Matchmaking Integration', () => {
 
             const userIds = [...tanks, ...dpsPlayers, ...supportPlayers];
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             const RANK_VALUES: Record<string, number> = {
                 bronze: 1,
@@ -107,7 +107,7 @@ describe('Matchmaking Integration', () => {
         it('preserves player data through the entire flow', () => {
             const userIds = seedPlayers(db, 10, ['tank', 'dps', 'support'], 'gold');
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             const allPlayers = [...teams.team1, ...teams.team2];
             allPlayers.forEach(player => {
@@ -129,7 +129,7 @@ describe('Matchmaking Integration', () => {
         it('prioritizes players who have never played (Infinity priority)', () => {
             const userIdsByPriority = seedPlayersWithMatchHistory(db);
 
-            const teams = createMatchTeams(userIdsByPriority, db);
+            const teams = createMatchTeams(userIdsByPriority, db, 'test-guild');
 
             const selectedUserIds = [...teams.team1, ...teams.team2].map(p => p.userId);
 
@@ -171,7 +171,7 @@ describe('Matchmaking Integration', () => {
             completeMatch(db, recentMatchId, 1);
 
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
             const selectedUserIds = [...teams.team1, ...teams.team2].map(p => p.userId);
 
             expect(selectedUserIds).toContain('user11');
@@ -207,7 +207,7 @@ describe('Matchmaking Integration', () => {
             `).run(matchId);
             completeMatch(db, matchId, 1);
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             const allPlayers = [...teams.team1, ...teams.team2];
 
@@ -252,7 +252,7 @@ describe('Matchmaking Integration', () => {
             `).run(match2Id);
             completeMatch(db, match2Id, 1);
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
             const allPlayers = [...teams.team1, ...teams.team2];
 
             const user1 = allPlayers.find(p => p.userId === 'user1');
@@ -273,7 +273,7 @@ describe('Matchmaking Integration', () => {
                 'unregistered1', 'unregistered2'
             ];
 
-            expect(() => createMatchTeams(allUserIds, db)).toThrow(InsufficientPlayersError);
+            expect(() => createMatchTeams(allUserIds, db, 'test-guild')).toThrow(InsufficientPlayersError);
         });
 
         it('throws InsufficientPlayersError when fewer than 10 registered players', () => {
@@ -281,7 +281,7 @@ describe('Matchmaking Integration', () => {
 
             const userIds = Array.from({length: 8}, (_, i) => `user${i + 1}`);
 
-            expect(() => createMatchTeams(userIds, db)).toThrow(InsufficientPlayersError);
+            expect(() => createMatchTeams(userIds, db, 'test-guild')).toThrow(InsufficientPlayersError);
         });
 
         it('throws InsufficientRoleCompositionError for invalid role distribution', () => {
@@ -289,7 +289,7 @@ describe('Matchmaking Integration', () => {
 
             const userIds = Array.from({length: 10}, (_, i) => `user${i + 1}`);
 
-            expect(() => createMatchTeams(userIds, db))
+            expect(() => createMatchTeams(userIds, db, 'test-guild'))
                 .toThrow(InsufficientRoleCompositionError);
         });
 
@@ -300,7 +300,7 @@ describe('Matchmaking Integration', () => {
 
             const userIds = [...tanks, ...dpsPlayers, ...supportPlayers];
 
-            expect(() => createMatchTeams(userIds, db))
+            expect(() => createMatchTeams(userIds, db, 'test-guild'))
                 .toThrow(InsufficientRoleCompositionError);
         });
 
@@ -310,7 +310,7 @@ describe('Matchmaking Integration', () => {
             const userIds = Array.from({length: 5}, (_, i) => `user${i + 1}`);
 
             try {
-                createMatchTeams(userIds, db);
+                createMatchTeams(userIds, db, 'test-guild');
                 fail('Expected InsufficientPlayersError to be thrown');
             } catch (error) {
                 expect(error).toBeInstanceOf(InsufficientPlayersError);
@@ -332,7 +332,7 @@ describe('Matchmaking Integration', () => {
 
             const userIds = [...tanks1, ...tanks2, ...dps1, ...dps2, ...support1, ...support2];
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             expect(teams.team1).toHaveLength(5);
             expect(teams.team2).toHaveLength(5);
@@ -350,7 +350,7 @@ describe('Matchmaking Integration', () => {
 
             const userIds = [...flexTankDps, ...flexDpsSupport, ...flexAll];
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             expect(teams.team1).toHaveLength(5);
             expect(teams.team2).toHaveLength(5);
@@ -368,7 +368,7 @@ describe('Matchmaking Integration', () => {
 
             const userIds = Array.from({length: 10}, (_, i) => `user${i + 1}`);
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             expect(teams.team1).toHaveLength(5);
             expect(teams.team2).toHaveLength(5);
@@ -384,7 +384,7 @@ describe('Matchmaking Integration', () => {
 
             const userIds = Array.from({length: 20}, (_, i) => `user${i + 1}`);
 
-            const teams = createMatchTeams(userIds, db);
+            const teams = createMatchTeams(userIds, db, 'test-guild');
 
             expect(teams.team1).toHaveLength(5);
             expect(teams.team2).toHaveLength(5);
@@ -398,7 +398,7 @@ describe('Matchmaking Integration', () => {
         it('integrates with complete match workflow', () => {
             const userIds = seedPlayers(db, 12, ['tank', 'dps', 'support'], 'gold');
 
-            const firstTeams = createMatchTeams(userIds, db);
+            const firstTeams = createMatchTeams(userIds, db, 'test-guild');
             const firstSelectedIds = [...firstTeams.team1, ...firstTeams.team2].map(p => p.userId);
 
             const firstAllPlayers = [...firstTeams.team1, ...firstTeams.team2];
@@ -415,7 +415,7 @@ describe('Matchmaking Integration', () => {
             const matchId = createMatch(db, 'vc123', matchParticipants);
             completeMatch(db, matchId, 1);
 
-            const secondTeams = createMatchTeams(userIds, db);
+            const secondTeams = createMatchTeams(userIds, db, 'test-guild');
             const secondSelectedIds = [...secondTeams.team1, ...secondTeams.team2].map(p => p.userId);
 
             const secondAllPlayers = [...secondTeams.team1, ...secondTeams.team2];

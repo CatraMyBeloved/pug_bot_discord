@@ -364,9 +364,7 @@ export function buildMatchmakingWeightsModal(
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(false)
         .setPlaceholder(
-            'Fairness Weight: Prioritizes balanced skill levels.\n' +
-            'Priority Weight: Prioritizes players who have waited longest.\n\n' +
-            'Example: 0.2 fairness + 0.8 priority = 1.0'
+            'Fairness: skill balance. Priority: wait time. Example: 0.2 fairness + 0.8 priority = 1.0'
         )
         .setValue('');
 

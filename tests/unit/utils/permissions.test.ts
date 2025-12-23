@@ -35,6 +35,8 @@ describe('hasMatchPermission', () => {
             pug_leader_role_id: pugLeaderRoleId,
             announcement_channel_id: null,
             auto_move: 1,
+            fairness_weight: 0.2,
+            priority_weight: 0.8,
             updated_at: '2025-01-01 00:00:00',
         };
     }
